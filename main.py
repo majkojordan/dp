@@ -12,6 +12,10 @@ def load_data(count="1000", event_type="view_item"):
         return None
 
 
+def save_data(df, table_name="preprocessed_events"):
+    df.to_sql(table_name, DB_CONNECTION_STRING, if_exists="append")
+
+
 def add_sessions(df):
     df = df.sort_values(by=["customer_id", "timestamp"])
 
@@ -36,5 +40,13 @@ def get_popular_items(df, count=10):
     return most_popular
 
 
+def remove_short_sessions(df, threshold=2):
+    session_lengths = df.groupby("session_id").size()
+    sessions_to_keep = session_lengths[session_lengths >= threshold].index
+    return df[df["session_id"].isin(sessions_to_keep)]
+
+
 df = load_data(1000)
 df = add_sessions(df)
+df = remove_short_sessions(df)
+save_data(df)
