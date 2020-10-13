@@ -3,7 +3,7 @@ from config import DB_CONNECTION_STRING
 from datetime import timedelta
 
 
-def load_data(count="1000", table_name="preprocessed_events"):
+def load_data(table_name="preprocessed_events", count="1000"):
     query = f"SELECT * FROM {table_name} ORDER BY timestamp DESC LIMIT {count}"
     try:
         return pd.read_sql(query, DB_CONNECTION_STRING)
@@ -11,14 +11,14 @@ def load_data(count="1000", table_name="preprocessed_events"):
         return None
 
 
-def get_popular_items(df, count=10):
-    most_popular = (
-        df.groupby(["customer_id", "product_id"])
-        .agg({"customer_id": "first", "product_id": "first"})["product_id"]
-        .value_counts()
-        .head(count)
-        .keys()
-        .tolist()
-    )
+def get_popular_items(table_name="product_counts", count=10):
+    query = f"SELECT product_id FROM {table_name} ORDER BY count DESC LIMIT {count}"
+    try:
+        df = pd.read_sql(query, DB_CONNECTION_STRING)
+    except:
+        return None
 
-    return most_popular
+    return df["product_id"].tolist()
+
+
+print(get_popular_items("product_counts_1602591623"))
