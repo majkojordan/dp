@@ -37,6 +37,7 @@ def get_popular_items(table_name="product_counts", count=10):
 
     return df["product_id"].tolist()
 
+
 dataset = SequenceDataset()
 dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
 
@@ -48,12 +49,23 @@ model = RNN(
     batch_size=BATCH_SIZE,
 )
 loss_function = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-for (batch, labels) in dataloader:
-    print(batch.shape)
-    print(model(batch))
-    break
+
+# train
+for i in range(1000):
+    for (batch, labels) in dataloader:
+        optimizer.zero_grad()
+        model.reset_hidden()
+
+        y_pred = model(batch)
+
+        label_indexes = torch.argmax(labels, axis=1)
+        loss = loss_function(y_pred, label_indexes)
+        loss.backward()
+        optimizer.step()
+
+    print(f"loss: {loss.item()}")
 
 # sequence = [one_hot_encode(i) for i in s.iloc[0]]
 # input = torch.tensor(sequence[:-1]).view(1, -1, dataset.item_count)
