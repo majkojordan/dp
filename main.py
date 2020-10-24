@@ -4,6 +4,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from datetime import timedelta
 from nn import RNN
+from torch.nn.utils.rnn import pad_sequence
 
 from config import BATCH_SIZE, DB_CONNECTION_STRING
 from dataset import SequenceDataset
@@ -38,8 +39,32 @@ def get_popular_items(table_name="product_counts", count=10):
     return df["product_id"].tolist()
 
 
+def collate_fn(sessions):
+    # print(sessions)
+    sessions = [[dataset.one_hot_encode(i) for i in s] for s in sessions]
+    # print(sessions)
+    # # TODO - more efficient one hot encoding - only before feeding to model to not waste memory - check pytorch scatter
+    sessions = [(torch.tensor(x[:-1]), torch.tensor(x[-1])) for x in sessions]
+    inputs, labels = zip(*sessions)
+    # # lengths = [len(x) for x in inputs]
+    inputs = pad_sequence(inputs, batch_first=True, padding_value=0)
+
+    labels = torch.stack(labels)
+    # print(f'inputs: {inputs.shape}')
+    # # TODO - pack sequences, needs to be done to be able to use batches
+    # # print(torch.nn.utils.rnn.pack_padded_sequence(inputs[:3], lengths[:3], batch_first=True, enforce_sorted=False))
+
+    return inputs, labels
+
+
 dataset = SequenceDataset()
-dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+dataloader = DataLoader(
+    dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
+)
+
+# inputs, labels = next(iter(dataloader))
+# print(labels)
+
 
 # create model
 model = RNN(
@@ -53,7 +78,9 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 
 # train
-for i in range(1000):
+for i in range(10):
+    hits = 0
+    total = 0
     for (batch, labels) in dataloader:
         optimizer.zero_grad()
         model.reset_hidden()
@@ -67,28 +94,31 @@ for i in range(1000):
 
     print(f"loss: {loss.item()}")
 
-# sequence = [one_hot_encode(i) for i in s.iloc[0]]
-# input = torch.tensor(sequence[:-1]).view(1, -1, dataset.item_count)
-# label = torch.tensor(sequence[-1])
 
-# # s = s.apply(lambda x: [one_hot_encode(i) for i in x])
-# # transform array of (input, label) tuples
-# inputs, labels = [(torch.tensor(x[:-1]), torch.tensor(x[-1])) for x in s.tolist()]
-# print(inputs)
+# evaluate
+# TODO - test and validation datasets
+model.eval()
 
-# padded = nn.utils.rnn.pad_sequence(input, batch_first=True)
-# print(nn.utils.rnn.pack_padded_sequence(padded, batch_first=True, lengths=[2]))
-# epochs = 10
-# aggregated_losses = []
-#
-# for i in range(epochs):
-#     y_pred = model()
-#     single_loss = loss_function(y_pred, train_outputs)
-#     aggregated_losses.append(single_loss)
+with torch.no_grad():
+    total_hits = 0
+    total_count = 0
+    for (batch, labels) in dataloader:
+        model.reset_hidden()
 
+        y_pred = model(batch)
 
-#     optimizer.zero_grad()
-#     single_loss.backward()
-#     optimizer.step()
+        # print(
+        #     [dataset.one_hot_decode(i) for i in y_pred.tolist()],
+        #     [dataset.one_hot_decode(i) for i in labels.tolist()],
+        # )
 
-# print(f'epoch: {i:3} loss: {single_loss.item():10.10f}')
+        predicted_indexes = torch.argmax(y_pred, axis=1)
+        label_indexes = torch.argmax(labels, axis=1)
+
+        hits = torch.sum(predicted_indexes == label_indexes).item()
+
+        total_hits += hits
+        total_count += batch.shape[0]
+
+    acc = (total_hits / total_count) * 100
+    print(f"acc: {acc:.4f}%")
