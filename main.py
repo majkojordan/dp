@@ -6,9 +6,11 @@ from datetime import timedelta
 from nn import RNN
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 from tqdm import tqdm, trange
+from torch.utils.data import random_split
 
 from config import BATCH_SIZE, DB_CONNECTION_STRING
 from dataset import SequenceDataset
+
 
 def load_data(table_name="preprocessed_events", count="1000"):
     query = f"SELECT * FROM {table_name} ORDER BY session_id DESC LIMIT {count}"
@@ -46,17 +48,22 @@ def collate_fn(sessions):
     return inputs, labels
 
 
+# load data
 dataset = SequenceDataset()
-dataloader = DataLoader(
-    dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
+test_size = min(int(0.2 * len(dataset)), 10000)
+train_size = len(dataset) - test_size
+train, test = random_split(dataset, [train_size, test_size])
+train_loader = DataLoader(
+    train, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
 )
-
-# inputs, labels = next(iter(dataloader))
-# print(labels)
+test_loader = DataLoader(
+    test, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
+)
+print(f"Train size: {len(train)} sessions, test size: {len(test)} sessions")
 
 device_name = "cuda" if torch.cuda.is_available() else "cpu"
 device = torch.device(device_name)
-print(f'Running on {device_name}')
+print(f"Running on {device_name}")
 
 
 # create model
@@ -65,19 +72,20 @@ model = RNN(
     output_size=dataset.item_count,
     hidden_size=100,
     batch_size=BATCH_SIZE,
-    device=device
+    device=device,
 )
 loss_function = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 
 # train
-epochs = 5
-print(f'Starting training: {epochs} epochs')
+epochs = 2
+print(f"Training")
 for i in range(epochs):
+    print(f"Epoch: {i + 1} / {epochs}")
     hits = 0
     total = 0
-    for batch, labels in tqdm(dataloader):
+    for batch, labels in tqdm(train_loader):
         batch = batch.to(device)
         labels = labels.to(device)
 
@@ -91,18 +99,18 @@ for i in range(epochs):
         loss.backward()
         optimizer.step()
 
-    print(f"Epoch: {i + 1} / {epochs}, loss: {loss.item()}")
+    print(f"Loss: {loss.item()}")
 
 
 # evaluate
-# TODO - test and validation datasets
+print("Evaluation")
 model.eval()
 
 with torch.no_grad():
     hits = 0
     popular_hits = 0
     total_count = 0
-    for batch, labels in dataloader:
+    for batch, labels in tqdm(test_loader):
         batch = batch.to(device)
         labels = labels.to(device)
 
@@ -116,7 +124,9 @@ with torch.no_grad():
         count = batch.batch_sizes[0].item()
         for i in range(count):
             hits += int(label_indexes[i] in predicted_indexes[i])
-            popular_hits += int(label_indexes[i] in dataset.most_popular_item_indexes)
+            popular_hits += int(
+                label_indexes[i].cpu() in dataset.most_popular_item_indexes
+            )
 
         total_count += count
 

@@ -36,7 +36,9 @@ class SequenceDataset(Dataset):
             self.item_to_idx(i) for i in most_popular_items
         ]
 
-        print("Dataset initialized")
+        print(
+            f"Dataset initialized ({len(self.sessions)} sessions, {self.item_count} items)"
+        )
 
     def __len__(self):
         return len(self.sessions)
