@@ -6,6 +6,13 @@ from tqdm import tqdm
 
 from utils import get_timestamp
 
+def sql_to_csv(query, path):
+    # sql_to_csv("SELECT * FROM preprocessed_events_month_1603127051 limit 1000", 'events_month_1000.csv')
+    df = pd.read_sql(
+        query,
+        DB_CONNECTION_STRING,
+    )
+    df.to_csv(path)
 
 def add_session_ids(df):
     df = df.sort_values(by=["customer_id", "timestamp"])

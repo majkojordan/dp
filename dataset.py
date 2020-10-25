@@ -6,11 +6,8 @@ from config import DB_CONNECTION_STRING
 
 
 class SequenceDataset(Dataset):
-    def __init__(self):
-        df = pd.read_sql(
-            "SELECT * FROM preprocessed_events_month_1603127051 limit 10000",
-            DB_CONNECTION_STRING,
-        )
+    def __init__(self, data_path):
+        df = pd.read_csv(data_path)
 
         self.item_mapping = (
             df.groupby("product_id")["product_id"]

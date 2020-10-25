@@ -49,7 +49,7 @@ def collate_fn(sessions):
 
 
 # load data
-dataset = SequenceDataset()
+dataset = SequenceDataset('events_month_1000.csv')
 test_size = min(int(0.2 * len(dataset)), 10000)
 train_size = len(dataset) - test_size
 train, test = random_split(dataset, [train_size, test_size])
@@ -77,59 +77,64 @@ model = RNN(
 loss_function = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
+# evaluate
+def test(dataloader):
+    print("Evaluation")
+    model.eval()
+
+    with torch.no_grad():
+        hits = 0
+        popular_hits = 0
+        total_count = 0
+        for batch, labels in tqdm(dataloader):
+            batch = batch.to(device)
+            labels = labels.to(device)
+
+            model.reset_hidden()
+
+            y_pred = model(batch)
+
+            predicted_indexes = torch.topk(y_pred, 10, axis=1).indices
+            label_indexes = torch.argmax(labels, axis=1)
+
+            count = batch.batch_sizes[0].item()
+            for i in range(count):
+                hits += int(label_indexes[i] in predicted_indexes[i])
+                popular_hits += int(
+                    label_indexes[i].cpu() in dataset.most_popular_item_indexes
+                )
+
+            total_count += count
+
+        acc = (hits / total_count) * 100
+        popular_acc = (popular_hits / total_count) * 100
+        print(f"acc@10: {acc:.4f}%, popular acc@10: {popular_acc:.4f}%")
+
+    model.train()
 
 # train
-epochs = 2
-print(f"Training")
-for i in range(epochs):
-    print(f"Epoch: {i + 1} / {epochs}")
-    hits = 0
-    total = 0
-    for batch, labels in tqdm(train_loader):
-        batch = batch.to(device)
-        labels = labels.to(device)
+def train(dataloader, epochs=10):
+    print(f"Training")
+    for i in range(epochs):
+        print(f"Epoch: {i + 1} / {epochs}")
+        hits = 0
+        total = 0
+        for batch, labels in tqdm(train_loader):
+            batch = batch.to(device)
+            labels = labels.to(device)
 
-        optimizer.zero_grad()
-        model.reset_hidden()
+            optimizer.zero_grad()
+            model.reset_hidden()
 
-        y_pred = model(batch)
+            y_pred = model(batch)
 
-        label_indexes = torch.argmax(labels, axis=1)
-        loss = loss_function(y_pred, label_indexes)
-        loss.backward()
-        optimizer.step()
+            label_indexes = torch.argmax(labels, axis=1)
+            loss = loss_function(y_pred, label_indexes)
+            loss.backward()
+            optimizer.step()
 
-    print(f"Loss: {loss.item()}")
+        test(test_loader)
+        print(f"Loss: {loss.item()}")
 
 
-# evaluate
-print("Evaluation")
-model.eval()
-
-with torch.no_grad():
-    hits = 0
-    popular_hits = 0
-    total_count = 0
-    for batch, labels in tqdm(test_loader):
-        batch = batch.to(device)
-        labels = labels.to(device)
-
-        model.reset_hidden()
-
-        y_pred = model(batch)
-
-        predicted_indexes = torch.topk(y_pred, 10, axis=1).indices
-        label_indexes = torch.argmax(labels, axis=1)
-
-        count = batch.batch_sizes[0].item()
-        for i in range(count):
-            hits += int(label_indexes[i] in predicted_indexes[i])
-            popular_hits += int(
-                label_indexes[i].cpu() in dataset.most_popular_item_indexes
-            )
-
-        total_count += count
-
-    acc = (hits / total_count) * 100
-    popular_acc = (popular_hits / total_count) * 100
-    print(f"acc@10: {acc:.4f}%, popular acc@10: {popular_acc:.4f}%")
+train(train_loader, epochs=20)
