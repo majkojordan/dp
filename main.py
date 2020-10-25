@@ -4,7 +4,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from datetime import timedelta
 from nn import RNN
-from torch.nn.utils.rnn import pad_sequence
+from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 
 from config import BATCH_SIZE, DB_CONNECTION_STRING
 from dataset import SequenceDataset
@@ -40,19 +40,19 @@ def get_popular_items(table_name="product_counts", count=10):
 
 
 def collate_fn(sessions):
-    # print(sessions)
     sessions = [[dataset.one_hot_encode(i) for i in s] for s in sessions]
-    # print(sessions)
     # # TODO - more efficient one hot encoding - only before feeding to model to not waste memory - check pytorch scatter
     sessions = [(torch.tensor(x[:-1]), torch.tensor(x[-1])) for x in sessions]
+
     inputs, labels = zip(*sessions)
-    # # lengths = [len(x) for x in inputs]
+
+    input_lengths = [len(x) for x in inputs]
     inputs = pad_sequence(inputs, batch_first=True, padding_value=0)
+    inputs = pack_padded_sequence(
+        inputs, input_lengths, batch_first=True, enforce_sorted=False
+    )
 
     labels = torch.stack(labels)
-    # print(f'inputs: {inputs.shape}')
-    # # TODO - pack sequences, needs to be done to be able to use batches
-    # # print(torch.nn.utils.rnn.pack_padded_sequence(inputs[:3], lengths[:3], batch_first=True, enforce_sorted=False))
 
     return inputs, labels
 
@@ -78,10 +78,10 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 
 # train
-for i in range(10):
+for i in range(20):
     hits = 0
     total = 0
-    for (batch, labels) in dataloader:
+    for batch, labels in dataloader:
         optimizer.zero_grad()
         model.reset_hidden()
 
@@ -102,7 +102,7 @@ model.eval()
 with torch.no_grad():
     total_hits = 0
     total_count = 0
-    for (batch, labels) in dataloader:
+    for batch, labels in dataloader:
         model.reset_hidden()
 
         y_pred = model(batch)
@@ -116,9 +116,10 @@ with torch.no_grad():
         label_indexes = torch.argmax(labels, axis=1)
 
         hits = torch.sum(predicted_indexes == label_indexes).item()
+        count = batch.batch_sizes[0].item()
 
         total_hits += hits
-        total_count += batch.shape[0]
+        total_count += count
 
     acc = (total_hits / total_count) * 100
     print(f"acc: {acc:.4f}%")

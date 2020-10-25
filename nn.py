@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch.nn.utils.rnn import pad_packed_sequence
 
 
 class RNN(nn.Module):
@@ -22,7 +23,11 @@ class RNN(nn.Module):
 
     def forward(self, input):
         output, self.hidden = self.gru(input, self.hidden)
-        output = output.permute(1, 0, 2)[-1]
+        output, lengths = pad_packed_sequence(output, batch_first=True)
+        # output = output.permute(1, 0, 2)[-1]
+        # get only last items
+        output = output[torch.arange(output.shape[0]), lengths - 1]
+
         output = self.linear(output)
         output = self.activation(output)
 
