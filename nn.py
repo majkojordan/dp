@@ -20,6 +20,7 @@ class RNN(nn.Module):
         self.activation = nn.Softmax(dim=1)
 
         self.reset_hidden()
+        print('Model initialized')
 
     def forward(self, input):
         output, self.hidden = self.gru(input, self.hidden)

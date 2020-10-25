@@ -5,21 +5,10 @@ from torch.utils.data import DataLoader
 from datetime import timedelta
 from nn import RNN
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from tqdm import tqdm, trange
 
 from config import BATCH_SIZE, DB_CONNECTION_STRING
 from dataset import SequenceDataset
-
-
-# def one_hot_encode(item):
-#     vector = torch.zeros(dataset.item_count)
-#     vector[item_indexes[item_indexes == item].index] = 1
-#     return vector.tolist()
-
-
-# def one_hot_decode(vector):
-#     item_index = torch.argmax(vector).item()
-#     return item_indexes.iloc[item_index]
-
 
 def load_data(table_name="preprocessed_events", count="1000"):
     query = f"SELECT * FROM {table_name} ORDER BY session_id DESC LIMIT {count}"
@@ -78,10 +67,12 @@ optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
 
 # train
-for i in range(20):
+epochs = 5
+print(f'Starting training: {epochs} epochs')
+for i in range(epochs):
     hits = 0
     total = 0
-    for batch, labels in dataloader:
+    for batch, labels in tqdm(dataloader):
         optimizer.zero_grad()
         model.reset_hidden()
 
@@ -92,7 +83,7 @@ for i in range(20):
         loss.backward()
         optimizer.step()
 
-    print(f"loss: {loss.item()}")
+    print(f"Epoch: {i + 1} / {epochs}, loss: {loss.item()}")
 
 
 # evaluate
@@ -100,26 +91,24 @@ for i in range(20):
 model.eval()
 
 with torch.no_grad():
-    total_hits = 0
+    hits = 0
+    popular_hits = 0
     total_count = 0
     for batch, labels in dataloader:
         model.reset_hidden()
 
         y_pred = model(batch)
 
-        # print(
-        #     [dataset.one_hot_decode(i) for i in y_pred.tolist()],
-        #     [dataset.one_hot_decode(i) for i in labels.tolist()],
-        # )
-
-        predicted_indexes = torch.argmax(y_pred, axis=1)
+        predicted_indexes = torch.topk(y_pred, 10, axis=1).indices
         label_indexes = torch.argmax(labels, axis=1)
 
-        hits = torch.sum(predicted_indexes == label_indexes).item()
         count = batch.batch_sizes[0].item()
+        for i in range(count):
+            hits += int(label_indexes[i] in predicted_indexes[i])
+            popular_hits += int(label_indexes[i] in dataset.most_popular_item_indexes)
 
-        total_hits += hits
         total_count += count
 
-    acc = (total_hits / total_count) * 100
-    print(f"acc: {acc:.4f}%")
+    acc = (hits / total_count) * 100
+    popular_acc = (popular_hits / total_count) * 100
+    print(f"acc@10: {acc:.4f}%, popular acc@10: {popular_acc:.4f}%")
