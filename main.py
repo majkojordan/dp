@@ -54,6 +54,10 @@ dataloader = DataLoader(
 # inputs, labels = next(iter(dataloader))
 # print(labels)
 
+device_name = "cuda" if torch.cuda.is_available() else "cpu"
+device = torch.device(device_name)
+print(f'Running on {device_name}')
+
 
 # create model
 model = RNN(
@@ -61,6 +65,7 @@ model = RNN(
     output_size=dataset.item_count,
     hidden_size=100,
     batch_size=BATCH_SIZE,
+    device=device
 )
 loss_function = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -73,6 +78,9 @@ for i in range(epochs):
     hits = 0
     total = 0
     for batch, labels in tqdm(dataloader):
+        batch = batch.to(device)
+        labels = labels.to(device)
+
         optimizer.zero_grad()
         model.reset_hidden()
 
@@ -95,6 +103,9 @@ with torch.no_grad():
     popular_hits = 0
     total_count = 0
     for batch, labels in dataloader:
+        batch = batch.to(device)
+        labels = labels.to(device)
+
         model.reset_hidden()
 
         y_pred = model(batch)

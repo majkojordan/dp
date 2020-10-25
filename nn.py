@@ -5,7 +5,7 @@ from torch.nn.utils.rnn import pad_packed_sequence
 
 class RNN(nn.Module):
     def __init__(
-        self, input_size, output_size, hidden_size=100, batch_size=1, num_layers=1
+        self, input_size, output_size, hidden_size=100, batch_size=1, num_layers=1, device=torch.device("cpu")
     ):
         super(RNN, self).__init__()
 
@@ -19,7 +19,10 @@ class RNN(nn.Module):
         self.linear = nn.Linear(hidden_size, output_size)
         self.activation = nn.Softmax(dim=1)
 
+        self.device = device
         self.reset_hidden()
+
+        self = self.to(device)
         print('Model initialized')
 
     def forward(self, input):
@@ -35,4 +38,4 @@ class RNN(nn.Module):
         return output
 
     def reset_hidden(self):
-        self.hidden = torch.zeros(self.num_layers, self.batch_size, self.hidden_size)
+        self.hidden = torch.zeros(self.num_layers, self.batch_size, self.hidden_size).to(self.device)
