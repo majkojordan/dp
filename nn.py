@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from torch.nn.utils.rnn import pad_packed_sequence
 
@@ -24,7 +25,6 @@ class RNN(nn.Module):
 
         self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True)
         self.linear = nn.Linear(hidden_size, output_size)
-        self.activation = nn.Softmax(dim=1)
 
         self.device = device
         self.reset_hidden()
@@ -37,9 +37,9 @@ class RNN(nn.Module):
         output, lengths = pad_packed_sequence(output, batch_first=True)
         # get only last items
         output = output[torch.arange(output.shape[0]), lengths - 1]
-
+        output = F.relu(output)
         output = self.linear(output)
-        output = self.activation(output)
+        # output = F.log_softmax(output, dim=1) # don't use if loss_function is CrossEntropyLoss
 
         return output
 

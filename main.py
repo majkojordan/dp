@@ -105,11 +105,11 @@ def test(dataloader):
 # train
 def train(dataloader, epochs=10):
     print(f"Training")
-    for i in range(epochs):
-        print(f"Epoch: {i + 1} / {epochs}")
+    for epoch in range(epochs):
+        print(f"Epoch: {epoch + 1} / {epochs}")
         hits = 0
         total = 0
-        for batch, labels in tqdm(train_loader):
+        for i, (batch, labels) in enumerate(tqdm(train_loader)):
             batch = batch.to(device, dtype=torch.float)
             labels = labels.to(device)
 
@@ -121,6 +121,8 @@ def train(dataloader, epochs=10):
             loss = loss_function(y_pred, labels)
             loss.backward()
             optimizer.step()
+            if i % 10 == 1:
+                print(f"Loss: {loss.item()}")
 
         test(test_loader)
         print(f"Loss: {loss.item()}")
