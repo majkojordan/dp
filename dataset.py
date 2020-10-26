@@ -1,13 +1,13 @@
 import torch
 import pandas as pd
+
 from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
-from config import DB_CONNECTION_STRING
 
 
 class SequenceDataset(Dataset):
-    def __init__(self, data_path):
-        df = pd.read_csv(data_path)
+    def __init__(self, dataset_path):
+        df = pd.read_csv(dataset_path)
 
         self.item_mapping = (
             df.groupby("product_id")["product_id"]

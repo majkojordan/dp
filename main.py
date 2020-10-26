@@ -1,38 +1,28 @@
 import pandas as pd
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
-from datetime import timedelta
-from nn import RNN
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
-from tqdm import tqdm, trange
-from torch.utils.data import random_split
 
-from config import BATCH_SIZE, DB_CONNECTION_STRING
+from torch.nn import CrossEntropyLoss
+from torch.utils.data import DataLoader, random_split
+from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from datetime import timedelta
+from tqdm import tqdm
+
+from nn import RNN
+from config import (
+    BATCH_SIZE,
+    DB_CONNECTION_STRING,
+    DATASET_PATH,
+    EPOCHS,
+    HIDDEN_SIZE,
+    LEARNING_RATE,
+    NUM_LAYERS,
+)
 from dataset import SequenceDataset
 
 
-def load_data(table_name="preprocessed_events", count="1000"):
-    query = f"SELECT * FROM {table_name} ORDER BY session_id DESC LIMIT {count}"
-    try:
-        return pd.read_sql(query, DB_CONNECTION_STRING)
-    except:
-        return None
-
-
-def get_popular_items(table_name="product_counts", count=10):
-    query = f"SELECT product_id FROM {table_name} ORDER BY count DESC LIMIT {count}"
-    try:
-        df = pd.read_sql(query, DB_CONNECTION_STRING)
-    except:
-        return None
-
-    return df["product_id"].tolist()
-
-
 def collate_fn(sessions):
+    # TODO - more efficient one hot encoding - only before feeding to model to not waste memory - check pytorch scatter
     sessions = [[dataset.one_hot_encode(i) for i in s] for s in sessions]
-    # # TODO - more efficient one hot encoding - only before feeding to model to not waste memory - check pytorch scatter
     sessions = [(torch.tensor(x[:-1]), torch.tensor(x[-1])) for x in sessions]
 
     inputs, labels = zip(*sessions)
@@ -49,7 +39,7 @@ def collate_fn(sessions):
 
 
 # load data
-dataset = SequenceDataset('events_month_1000.csv')
+dataset = SequenceDataset(DATASET_PATH)
 test_size = min(int(0.2 * len(dataset)), 10000)
 train_size = len(dataset) - test_size
 train, test = random_split(dataset, [train_size, test_size])
@@ -61,6 +51,8 @@ test_loader = DataLoader(
 )
 print(f"Train size: {len(train)} sessions, test size: {len(test)} sessions")
 
+
+# select device
 device_name = "cuda" if torch.cuda.is_available() else "cpu"
 device = torch.device(device_name)
 print(f"Running on {device_name}")
@@ -70,12 +62,14 @@ print(f"Running on {device_name}")
 model = RNN(
     input_size=dataset.item_count,
     output_size=dataset.item_count,
-    hidden_size=100,
+    hidden_size=HIDDEN_SIZE,
     batch_size=BATCH_SIZE,
+    num_layers=NUM_LAYERS,
     device=device,
 )
-loss_function = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+loss_function = CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
 
 # evaluate
 def test(dataloader):
@@ -112,6 +106,7 @@ def test(dataloader):
 
     model.train()
 
+
 # train
 def train(dataloader, epochs=10):
     print(f"Training")
@@ -137,4 +132,4 @@ def train(dataloader, epochs=10):
         print(f"Loss: {loss.item()}")
 
 
-train(train_loader, epochs=20)
+train(train_loader, epochs=EPOCHS)
