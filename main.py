@@ -2,6 +2,7 @@ import pandas as pd
 import torch
 
 from torch.nn import CrossEntropyLoss
+from torch.nn.functional import one_hot
 from torch.utils.data import DataLoader, random_split
 from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
 from datetime import timedelta
@@ -21,17 +22,14 @@ from dataset import SequenceDataset
 
 
 def collate_fn(sessions):
-    # TODO - more efficient one hot encoding - only before feeding to model to not waste memory - check pytorch scatter
-    sessions = [[dataset.one_hot_encode(i) for i in s] for s in sessions]
-    sessions = [(torch.tensor(x[:-1]), torch.tensor(x[-1])) for x in sessions]
+    inputs, labels, lengths = zip(*sessions)
 
-    inputs, labels = zip(*sessions)
+    inputs = pad_sequence(inputs, batch_first=True, padding_value=0).to(device)
+    inputs = one_hot(inputs, dataset.item_count).to(device)
 
-    input_lengths = [len(x) for x in inputs]
-    inputs = pad_sequence(inputs, batch_first=True, padding_value=0)
     inputs = pack_padded_sequence(
-        inputs, input_lengths, batch_first=True, enforce_sorted=False
-    )
+        inputs, lengths, batch_first=True, enforce_sorted=False
+    ).to(device)
 
     labels = torch.stack(labels)
 
@@ -81,7 +79,7 @@ def test(dataloader):
         popular_hits = 0
         total_count = 0
         for batch, labels in tqdm(dataloader):
-            batch = batch.to(device)
+            batch = batch.to(device, dtype=torch.float)
             labels = labels.to(device)
 
             model.reset_hidden()
@@ -89,14 +87,11 @@ def test(dataloader):
             y_pred = model(batch)
 
             predicted_indexes = torch.topk(y_pred, 10, axis=1).indices
-            label_indexes = torch.argmax(labels, axis=1)
 
             count = batch.batch_sizes[0].item()
             for i in range(count):
-                hits += int(label_indexes[i] in predicted_indexes[i])
-                popular_hits += int(
-                    label_indexes[i].cpu() in dataset.most_popular_item_indexes
-                )
+                hits += int(labels[i] in predicted_indexes[i])
+                popular_hits += int(labels[i].cpu() in dataset.most_popular_items)
 
             total_count += count
 
@@ -115,7 +110,7 @@ def train(dataloader, epochs=10):
         hits = 0
         total = 0
         for batch, labels in tqdm(train_loader):
-            batch = batch.to(device)
+            batch = batch.to(device, dtype=torch.float)
             labels = labels.to(device)
 
             optimizer.zero_grad()
@@ -123,8 +118,7 @@ def train(dataloader, epochs=10):
 
             y_pred = model(batch)
 
-            label_indexes = torch.argmax(labels, axis=1)
-            loss = loss_function(y_pred, label_indexes)
+            loss = loss_function(y_pred, labels)
             loss.backward()
             optimizer.step()
 
