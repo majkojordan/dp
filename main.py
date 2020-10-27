@@ -19,7 +19,7 @@ from config import (
     NUM_LAYERS,
 )
 from dataset import SequenceDataset
-from utils import get_timestamp, save_checkpoint, load_checkpoint
+from utils import get_timestamp, save_checkpoint, load_checkpoint, print_line_separator
 
 
 def collate_fn(sessions):
@@ -72,6 +72,7 @@ model = RNN(
 )
 loss_function = CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+print_line_separator()
 
 
 # load checkpoint
@@ -95,11 +96,13 @@ for _, labels in tqdm(dataloaders["test"]):
 popular_acc = popular_hits / data_sizes["test"] * 100
 popular_acc_10 = popular_hits_10 / data_sizes["test"] * 100
 print(f"Baseline - acc@1: {popular_acc:.4f}, acc@10: {popular_acc_10:.4f}\n")
+print_line_separator()
 
 
 # train
 def train(dataloaders, epochs=10, save_checkpoints=False):
     print(f"Training")
+
     save_dir = f"checkpoint_{get_timestamp()}"
 
     for epoch in range(epochs):
@@ -158,7 +161,7 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
         if save_checkpoints:
             save_checkpoint(save_dir, model, optimizer, epoch, loss)
 
-        print("-" * 72, "\n")
+        print_line_separator()
 
 
 train(dataloaders, epochs=EPOCHS, save_checkpoints=False)
