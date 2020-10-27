@@ -19,6 +19,7 @@ from config import (
     NUM_LAYERS,
 )
 from dataset import SequenceDataset
+from utils import get_timestamp, save_checkpoint, load_checkpoint
 
 
 def collate_fn(sessions):
@@ -69,6 +70,18 @@ loss_function = CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 
+# load checkpoint
+use_checkpoint = True
+checkpoint = {
+    'name': 'checkpoint_1603809820',
+    'epoch': 2
+}
+
+if use_checkpoint:
+    checkpoint = load_checkpoint(checkpoint["name"], checkpoint["epoch"], model, optimizer)
+    print(checkpoint["loss"].item(), checkpoint["epoch"])
+
+
 # evaluate
 def test(dataloader):
     print("Evaluation")
@@ -103,8 +116,10 @@ def test(dataloader):
 
 
 # train
-def train(dataloader, epochs=10):
+def train(dataloader, epochs=10, save_checkpoints=False):
     print(f"Training")
+    save_dir = f"checkpoint_{get_timestamp()}"
+
     for epoch in range(epochs):
         print(f"Epoch: {epoch + 1} / {epochs}")
         hits = 0
@@ -126,6 +141,9 @@ def train(dataloader, epochs=10):
 
         test(test_loader)
         print(f"Loss: {loss.item()}")
+
+        if save_checkpoints:
+            save_checkpoint(save_dir, model, optimizer, epoch, loss)
 
 
 train(train_loader, epochs=EPOCHS)
