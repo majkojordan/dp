@@ -22,6 +22,8 @@ class SequenceDataset(Dataset):
 
         sessions = events.groupby("session_id")["product_idx"].apply(list)
         sessions = sessions[sessions.apply(lambda x: len(x) > 2 and len(x) < 100)]
+        # remove sessions where label and last item are the same
+        sessions = sessions[sessions.apply(lambda x: x[-1] != x[-2])]
 
         sessions = [
             (torch.tensor(s[:-1]), torch.tensor(s[-1]), len(s) - 1) for s in sessions

@@ -85,6 +85,18 @@ if use_checkpoint:
     print(checkpoint["loss"].item(), checkpoint["epoch"])
 
 
+# calculate baseline
+print("Calculating baseline scores - most popular")
+popular_acc = 0
+popular_hits_10 = 0
+for _, labels in tqdm(dataloaders["test"]):
+    popular_hits = sum([l == dataset.most_popular_items[0] for l in labels.tolist()])
+    popular_hits_10 += sum([l in dataset.most_popular_items for l in labels.tolist()])
+popular_acc = popular_hits / data_sizes["test"] * 100
+popular_acc_10 = popular_hits_10 / data_sizes["test"] * 100
+print(f"Baseline - acc@1: {popular_acc:.4f}, acc@10: {popular_acc_10:.4f}\n")
+
+
 # train
 def train(dataloaders, epochs=10, save_checkpoints=False):
     print(f"Training")
@@ -123,10 +135,11 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                         loss.backward()
                         optimizer.step()
                     else:
+                        # calculate hits@10 - only for test as it would slow down training
                         predicted_indexes_10 = torch.topk(y_pred, 10, axis=1).indices
-                        for i in range(curr_batch_size):
-                            hits_10 += int(labels[i] in predicted_indexes_10[i])
-                            # popular_hits += int(labels[i].cpu() in dataset.most_popular_items)
+                        hits_10 += sum(
+                            [l in predicted_indexes_10 for l in labels.tolist()]
+                        )
 
                     predicted_indexes = torch.argmax(y_pred, 1)
                     hits += torch.sum(predicted_indexes == labels).item()
