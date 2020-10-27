@@ -42,13 +42,17 @@ dataset = SequenceDataset(DATASET_PATH)
 test_size = min(int(0.2 * len(dataset)), 10000)
 train_size = len(dataset) - test_size
 train, test = random_split(dataset, [train_size, test_size])
-train_loader = DataLoader(
-    train, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
-)
-test_loader = DataLoader(
-    test, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
-)
-print(f"Train size: {len(train)} sessions, test size: {len(test)} sessions")
+dataloaders = {
+    "train": DataLoader(
+        train, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
+    ),
+    "test": DataLoader(
+        test, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
+    ),
+}
+data_sizes = {"train": train_size, "test": test_size}
+
+print(f"Train size: {train_size} sessions, test size: {test_size} sessions")
 
 
 # select device
@@ -71,79 +75,77 @@ optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 
 # load checkpoint
-use_checkpoint = True
-checkpoint = {
-    'name': 'checkpoint_1603809820',
-    'epoch': 2
-}
+use_checkpoint = False
+checkpoint = {"name": "checkpoint_1603809820", "epoch": 2}
 
 if use_checkpoint:
-    checkpoint = load_checkpoint(checkpoint["name"], checkpoint["epoch"], model, optimizer)
+    checkpoint = load_checkpoint(
+        checkpoint["name"], checkpoint["epoch"], model, optimizer
+    )
     print(checkpoint["loss"].item(), checkpoint["epoch"])
 
 
-# evaluate
-def test(dataloader):
-    print("Evaluation")
-    model.eval()
-
-    with torch.no_grad():
-        hits = 0
-        popular_hits = 0
-        total_count = 0
-        for batch, labels in tqdm(dataloader):
-            batch = batch.to(device, dtype=torch.float)
-            labels = labels.to(device)
-
-            model.reset_hidden()
-
-            y_pred = model(batch)
-
-            predicted_indexes = torch.topk(y_pred, 10, axis=1).indices
-
-            count = batch.batch_sizes[0].item()
-            for i in range(count):
-                hits += int(labels[i] in predicted_indexes[i])
-                popular_hits += int(labels[i].cpu() in dataset.most_popular_items)
-
-            total_count += count
-
-        acc = (hits / total_count) * 100
-        popular_acc = (popular_hits / total_count) * 100
-        print(f"acc@10: {acc:.4f}%, popular acc@10: {popular_acc:.4f}%")
-
-    model.train()
-
-
 # train
-def train(dataloader, epochs=10, save_checkpoints=False):
+def train(dataloaders, epochs=10, save_checkpoints=False):
     print(f"Training")
     save_dir = f"checkpoint_{get_timestamp()}"
 
     for epoch in range(epochs):
-        print(f"Epoch: {epoch + 1} / {epochs}")
-        hits = 0
-        total = 0
-        for i, (batch, labels) in enumerate(tqdm(train_loader)):
-            batch = batch.to(device, dtype=torch.float)
-            labels = labels.to(device)
+        print(f"Epoch: {epoch + 1} / {epochs}\n")
+        for phase in ["train", "test"]:
+            print(f"Phase: {phase}")
 
-            optimizer.zero_grad()
-            model.reset_hidden()
+            is_train = phase == "train"
 
-            y_pred = model(batch)
+            if is_train:
+                model.train()
+            else:
+                model.eval()
 
-            loss = loss_function(y_pred, labels)
-            loss.backward()
-            optimizer.step()
-            if i % 10 == 1:
-                print(f"Loss: {loss.item()}")
+            with torch.set_grad_enabled(is_train):
+                hits = 0
+                hits_10 = 0
+                running_loss = 0
 
-        test(test_loader)
-        print(f"Loss: {loss.item()}")
+                for batch, labels in tqdm(dataloaders[phase]):
+                    batch = batch.to(device, dtype=torch.float)
+                    labels = labels.to(device)
+
+                    optimizer.zero_grad()
+                    model.reset_hidden()
+
+                    y_pred = model(batch)
+
+                    loss = loss_function(y_pred, labels)
+
+                    curr_batch_size = batch.batch_sizes[0].item()
+                    if is_train:
+                        loss.backward()
+                        optimizer.step()
+                    else:
+                        predicted_indexes_10 = torch.topk(y_pred, 10, axis=1).indices
+                        for i in range(curr_batch_size):
+                            hits_10 += int(labels[i] in predicted_indexes_10[i])
+                            # popular_hits += int(labels[i].cpu() in dataset.most_popular_items)
+
+                    predicted_indexes = torch.argmax(y_pred, 1)
+                    hits += torch.sum(predicted_indexes == labels).item()
+                    running_loss += loss.item() * curr_batch_size
+
+            avg_loss = running_loss / data_sizes[phase]
+            acc = hits / data_sizes[phase] * 100
+            if is_train:
+                print(f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}\n")
+            else:
+                acc_10 = hits_10 / data_sizes[phase] * 100
+                print(
+                    f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}, acc@10: {acc_10:.4f}\n"
+                )
 
         if save_checkpoints:
             save_checkpoint(save_dir, model, optimizer, epoch, loss)
 
+        print("-" * 72, "\n")
 
-train(train_loader, epochs=EPOCHS)
+
+train(dataloaders, epochs=EPOCHS, save_checkpoints=False)

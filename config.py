@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DB_CONNECTION_STRING = os.getenv("DB_CONNECTION_STRING")
+
 DATASET_PATH = os.getenv("DATASET_PATH")
 BATCH_SIZE = int(os.getenv("BATCH_SIZE"))
 EPOCHS = int(os.getenv("EPOCHS") or 10)
