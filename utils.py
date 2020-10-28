@@ -4,12 +4,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-
-checkpoints_base_path = (
-    "drive/My Drive/Colab Notebooks/dp/checkpoints"
-    if "google.colab" in str(get_ipython())
-    else "checkpoints"
-)
+from config import BASE_PATH, CHECKPOINT_DIR
 
 
 def print_line_separator():
@@ -25,7 +20,7 @@ def mkdir_p(path):
 
 
 def save_checkpoint(dir, model, optimizer, epoch, loss):
-    path = os.path.join(checkpoints_base_path, dir, f"epoch_{epoch}.tar")
+    path = os.path.join(BASE_PATH, CHECKPOINT_DIR, dir, f"epoch_{epoch}.tar")
     dir_path = os.path.dirname(path)
 
     mkdir_p(dir_path)
@@ -43,7 +38,7 @@ def save_checkpoint(dir, model, optimizer, epoch, loss):
 
 
 def load_checkpoint(dir, epoch, model, optimizer):
-    path = os.path.join(checkpoints_base_path, dir, f"epoch_{epoch}.tar")
+    path = os.path.join(BASE_PATH, CHECKPOINT_DIR, dir, f"epoch_{epoch}.tar")
     checkpoint = torch.load(path)
 
     model.load_state_dict(checkpoint["model_state_dict"])

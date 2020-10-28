@@ -1,5 +1,6 @@
 import pandas as pd
 import torch
+import os
 
 from torch.nn import CrossEntropyLoss
 from torch.nn.functional import one_hot
@@ -11,12 +12,15 @@ from tqdm import tqdm
 from nn import RNN
 from config import (
     BATCH_SIZE,
+    BASE_PATH,
     DB_CONNECTION_STRING,
-    DATASET_PATH,
+    DATA_DIR,
+    DATASET,
     EPOCHS,
     HIDDEN_SIZE,
     LEARNING_RATE,
     NUM_LAYERS,
+    SAVE_CHECKPOINTS,
 )
 from dataset import SequenceDataset
 from utils import get_timestamp, save_checkpoint, load_checkpoint, print_line_separator
@@ -38,7 +42,8 @@ def collate_fn(sessions):
 
 
 # load data
-dataset = SequenceDataset(DATASET_PATH)
+dataset_path = os.path.join(BASE_PATH, DATA_DIR, DATASET)
+dataset = SequenceDataset(dataset_path)
 test_size = min(int(0.2 * len(dataset)), 10000)
 train_size = len(dataset) - test_size
 train, test = random_split(dataset, [train_size, test_size])
@@ -105,8 +110,8 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
 
     save_dir = f"checkpoint_{get_timestamp()}"
 
-    for epoch in range(epochs):
-        print(f"Epoch: {epoch + 1} / {epochs}\n")
+    for epoch in range(1, epochs + 1):
+        print(f"Epoch: {epoch} / {epochs}\n")
         for phase in ["train", "test"]:
             print(f"Phase: {phase}")
 
@@ -164,4 +169,4 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
         print_line_separator()
 
 
-train(dataloaders, epochs=EPOCHS, save_checkpoints=False)
+train(dataloaders, epochs=EPOCHS, save_checkpoints=SAVE_CHECKPOINTS)
