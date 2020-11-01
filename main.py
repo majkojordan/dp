@@ -5,7 +5,7 @@ import os
 from torch.nn import CrossEntropyLoss
 from torch.nn.functional import one_hot
 from torch.utils.data import DataLoader, random_split
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence
+from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
 from datetime import timedelta
 from tqdm import tqdm
 
@@ -125,6 +125,9 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
             with torch.set_grad_enabled(is_train):
                 hits = 0
                 hits_10 = 0
+                long_hits = 0
+                long_hits_10 = 0
+                long_sessions = 0
                 running_loss = 0
 
                 for batch, labels in tqdm(dataloaders[phase]):
@@ -148,6 +151,18 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                         hits_10 += sum(
                             [l in predicted_indexes_10 for l in labels.tolist()]
                         )
+                        
+                        inputs, lengths = pad_packed_sequence(batch, batch_first=True)
+                        long_indexes = [l >= 3 for l in lengths.tolist()]
+                        long_inputs = inputs[long_indexes]
+                        long_labels = labels[long_indexes]
+                        long_preds = y_pred[long_indexes]
+
+                        predicted_indexes_10 = torch.topk(long_preds, 10, axis=1).indices
+                        long_hits_10 += sum(
+                            [l in predicted_indexes_10 for l in long_labels.tolist()]
+                        )
+                        long_sessions += long_inputs.shape[0]
 
                     predicted_indexes = torch.argmax(y_pred, 1)
                     hits += torch.sum(predicted_indexes == labels).item()
@@ -159,8 +174,9 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                 print(f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}\n")
             else:
                 acc_10 = hits_10 / data_sizes[phase] * 100
+                long_acc_10 = long_hits_10 / long_sessions * 100
                 print(
-                    f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}, acc@10: {acc_10:.4f}\n"
+                    f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}, acc@10: {acc_10:.4f}, long acc@10: {long_acc_10:.4f}\n"
                 )
 
         if save_checkpoints:

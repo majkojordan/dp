@@ -133,6 +133,3 @@ def preprocess_products():
 def preprocess():
     preprocess_events()
     preprocess_products()
-
-
-preprocess_events_sample()
