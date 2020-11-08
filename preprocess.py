@@ -38,6 +38,15 @@ def remove_short_sessions(df, threshold=2):
 
 
 def remove_unfrequent_items(df, threshold=10):
+    # product_counts = df.groupby("product_id").size()
+    # products_to_keep = product_counts[product_counts >= threshold].index
+
+    # category_counts = df.groupby("categories").size()
+    # categories_to_keep = category_counts[category_counts >= threshold].index
+    # return df[
+    #     df["product_id"].isin(products_to_keep)
+    #     & df["categories"].isin(categories_to_keep)
+    # ]
     product_counts = df.groupby("product_id").size()
     products_to_keep = product_counts[product_counts >= threshold].index
     return df[df["product_id"].isin(products_to_keep)]
@@ -141,7 +150,7 @@ def preprocess():
 #     """
 #         SELECT product_id, customer_id, timestamp, session_id, categories
 #         FROM preprocessed_events_month_1603127051 e join products p on p.id = e.product_id
-#         ORDER BY timestamp DESC LIMIT 100000
+#         ORDER BY timestamp DESC LIMIT 1000000
 #     """,
-#     "data/events_month_100000.csv",
+#     "data/events_month_1000000.csv",
 # )
