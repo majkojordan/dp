@@ -6,6 +6,7 @@ from tqdm import tqdm
 
 from utils import get_timestamp
 
+
 def sql_to_csv(query, path):
     # sql_to_csv("SELECT * FROM preprocessed_events_month_1603127051 limit 1000", 'data/events_month_1000.csv')
     df = pd.read_sql(
@@ -13,6 +14,7 @@ def sql_to_csv(query, path):
         DB_CONNECTION_STRING,
     )
     df.to_csv(path)
+
 
 def add_session_ids(df):
     df = df.sort_values(by=["customer_id", "timestamp"])
@@ -133,3 +135,13 @@ def preprocess_products():
 def preprocess():
     preprocess_events()
     preprocess_products()
+
+
+# sql_to_csv(
+#     """
+#         SELECT product_id, customer_id, timestamp, session_id, categories
+#         FROM preprocessed_events_month_1603127051 e join products p on p.id = e.product_id
+#         ORDER BY timestamp DESC LIMIT 100000
+#     """,
+#     "data/events_month_100000.csv",
+# )

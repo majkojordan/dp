@@ -27,7 +27,8 @@ from utils import get_timestamp, save_checkpoint, load_checkpoint, print_line_se
 
 
 def collate_fn(sessions):
-    inputs, labels, lengths = zip(*sessions)
+    inputs, labels, metadata = zip(*sessions)
+    _, lengths = zip(*metadata)
 
     inputs = pad_sequence(inputs, batch_first=True, padding_value=0).to(device)
     inputs = one_hot(inputs, dataset.item_count).to(device)
@@ -38,7 +39,7 @@ def collate_fn(sessions):
 
     labels = torch.stack(labels)
 
-    return inputs, labels
+    return inputs, labels, metadata
 
 
 # load data
@@ -95,7 +96,7 @@ if use_checkpoint:
 print("Calculating baseline scores - most popular")
 popular_acc = 0
 popular_hits_10 = 0
-for _, labels in tqdm(dataloaders["test"]):
+for _, labels, _ in tqdm(dataloaders["test"]):
     popular_hits = sum([l == dataset.most_popular_items[0] for l in labels.tolist()])
     popular_hits_10 += sum([l in dataset.most_popular_items for l in labels.tolist()])
 popular_acc = popular_hits / data_sizes["test"] * 100
@@ -127,10 +128,10 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                 hits_10 = 0
                 long_hits = 0
                 long_hits_10 = 0
-                long_sessions = 0
+                long_session_count = 0
                 running_loss = 0
 
-                for batch, labels in tqdm(dataloaders[phase]):
+                for batch, labels, metadata in tqdm(dataloaders[phase]):
                     batch = batch.to(device, dtype=torch.float)
                     labels = labels.to(device)
 
@@ -151,18 +152,23 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                         hits_10 += sum(
                             [l in predicted_indexes_10 for l in labels.tolist()]
                         )
-                        
-                        inputs, lengths = pad_packed_sequence(batch, batch_first=True)
-                        long_indexes = [l >= 3 for l in lengths.tolist()]
+
+                        inputs, _ = pad_packed_sequence(batch, batch_first=True)
+                        session_ids, _ = zip(*metadata)
+                        long_indexes = [
+                            i in dataset.long_session_ids for i in session_ids
+                        ]
                         long_inputs = inputs[long_indexes]
                         long_labels = labels[long_indexes]
                         long_preds = y_pred[long_indexes]
 
-                        predicted_indexes_10 = torch.topk(long_preds, 10, axis=1).indices
+                        predicted_indexes_10 = torch.topk(
+                            long_preds, 10, axis=1
+                        ).indices
                         long_hits_10 += sum(
                             [l in predicted_indexes_10 for l in long_labels.tolist()]
                         )
-                        long_sessions += long_inputs.shape[0]
+                        long_session_count += long_inputs.shape[0]
 
                     predicted_indexes = torch.argmax(y_pred, 1)
                     hits += torch.sum(predicted_indexes == labels).item()
@@ -174,7 +180,11 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                 print(f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}\n")
             else:
                 acc_10 = hits_10 / data_sizes[phase] * 100
-                long_acc_10 = long_hits_10 / long_sessions * 100
+                long_acc_10 = (
+                    long_hits_10 / long_session_count * 100
+                    if long_session_count > 0
+                    else 999
+                )
                 print(
                     f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}, acc@10: {acc_10:.4f}, long acc@10: {long_acc_10:.4f}\n"
                 )
