@@ -10,6 +10,12 @@ from config import SIMILARITY_THRESHOLD, USE_CATEGORY_SIMILARITY
 from preprocess import remove_unfrequent_items
 
 
+def trainWord2Vec(series):
+    word_model = Word2Vec(series.tolist(), size=100, window=5, min_count=1)
+    word_model.init_sims(replace=True)
+    return word_model
+
+
 class SequenceDataset(Dataset):
     def __init__(self, dataset_path):
         events = pd.read_csv(dataset_path)
@@ -25,7 +31,6 @@ class SequenceDataset(Dataset):
             .rename_axis("product_idx")
             .reset_index()  # add new index as column
         )
-        self.item_count = self.item_mapping.size
 
         # add item indexes to events
         events = events.join(self.item_mapping.set_index("product_id"), on="product_id")
@@ -46,41 +51,47 @@ class SequenceDataset(Dataset):
         # remove sessions where label is in input sequence
         sessions = sessions[sessions.apply(lambda x: x[-1] not in x[:-1])]
 
-        # get category click sequences
-        events["categories"] = events["categories"].astype(str)
-        category_sequences = events.groupby("session_id")["categories"].apply(list)
+        if USE_CATEGORY_SIMILARITY:
+            # get category click sequences
+            events["categories"] = events["categories"].astype(str)
+            category_sequences = events.groupby("session_id")["categories"].apply(list)
 
-        # remove one item sessions
-        category_sequences = category_sequences[
-            category_sequences.apply(lambda x: len(x) > 2)
-        ]
+            # remove one item sessions
+            category_sequences = category_sequences[
+                category_sequences.apply(lambda x: len(x) > 2)
+            ]
 
-        # create word2vec embeddings
-        word_model = Word2Vec(
-            category_sequences.tolist(), size=100, window=5, min_count=1
-        )
-        word_model.init_sims(replace=True)
-        self.word_model = word_model
+            # create word2vec embeddings
+            self.word_model = trainWord2Vec(category_sequences)
 
-        # create mapping dictionaries
-        self.idx_to_item = (
-            events.groupby("product_id")["product_id"].first().tolist()
-            if USE_CATEGORY_SIMILARITY
-            else word_model.wv.index2word
-        )
-        self.item_to_idx = {item: idx for idx, item in enumerate(self.idx_to_item)}
-
-        # create Series to find item category
-        self.item_to_category = events.groupby("product_id")["categories"].first()
-
-        # ensure that sessions consist only from items that are in word2vec dictionary and session lengths are within boundary
-        sessions = (
-            sessions.apply(
-                lambda x: [i for i in x if self.item_to_category[i] in word_model.wv]
+            # create mapping dictionaries
+            self.idx_to_item = (
+                events.groupby("product_id")["product_id"].first().tolist()
             )
-            if USE_CATEGORY_SIMILARITY
-            else sessions.apply(lambda x: [i for i in x if i in word_model.wv])
-        )
+            self.item_to_idx = {item: idx for idx, item in enumerate(self.idx_to_item)}
+            # create Series to find item category
+            self.item_to_category = events.groupby("product_id")["categories"].first()
+
+            # ensure that sessions consist only from items that are in word2vec dictionary
+            sessions = sessions.apply(
+                lambda x: [
+                    i for i in x if self.item_to_category[i] in self.word_model.wv
+                ]
+            )
+        else:
+            # create word2vec embeddings
+            self.word_model = trainWord2Vec(category_sequences)
+
+            # create mapping dictionaries
+            self.idx_to_item = self.word_model.wv.index2word
+            self.item_to_idx = {item: idx for idx, item in enumerate(self.idx_to_item)}
+
+            # ensure that sessions consist only from items that are in word2vec dictionary
+            sessions = sessions.apply(
+                lambda x: [i for i in x if i in self.word_model.wv]
+            )
+
+        self.item_count = len(self.idx_to_item)
 
         # remember long session ids - they are used in evaluation
         self.long_session_ids = sessions[

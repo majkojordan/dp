@@ -153,6 +153,7 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                             [l in predicted_indexes_10 for l in labels.tolist()]
                         )
 
+                        # calculate hits@10 for long sessions only
                         inputs, _ = pad_packed_sequence(batch, batch_first=True)
                         session_ids, _ = zip(*metadata)
                         long_indexes = [
