@@ -23,21 +23,8 @@ class SequenceDataset(Dataset):
         # remove items that don't have significant impact
         events = remove_unfrequent_items(events, 5)
 
-        # create item-index mapping
-        self.item_mapping = (
-            events.groupby("product_id")["product_id"]
-            .first()
-            .reset_index(level=0, drop=True)
-            .rename_axis("product_idx")
-            .reset_index()  # add new index as column
-        )
-
-        # add item indexes to events
-        events = events.join(self.item_mapping.set_index("product_id"), on="product_id")
-
         # transform to strings so it can be used with word2vec
         events["product_id"] = events["product_id"].astype(str)
-        # sessions = events.groupby("session_id")["product_idx"].apply(list)
         sessions = (
             events.groupby("session_id")["product_id"]
             .apply(list)
@@ -125,14 +112,15 @@ class SequenceDataset(Dataset):
         self.inputs, self.labels, self.metadata = zip(*sessions)
 
         # precompute most popular items
-        most_popular_items = (
-            events.groupby(["customer_id", "product_idx"])
-            .agg({"customer_id": "first", "product_idx": "first"})
-            .reset_index(drop=True)
+        most_popular_item_ids = (
+            events.groupby(["customer_id", "product_id"])
+            .agg({"product_id": "first"})["product_id"]
+            .value_counts()
+            .head(10)
+            .keys()
+            .tolist()
         )
-        self.most_popular_items = (
-            most_popular_items["product_idx"].value_counts().head(10).keys().tolist()
-        )
+        self.most_popular_items = [self.item_to_idx[i] for i in most_popular_item_ids]
 
         print(
             f"Dataset initialized ({len(self.inputs)} sessions, {self.item_count} items)"
@@ -144,21 +132,15 @@ class SequenceDataset(Dataset):
     def __getitem__(self, idx):
         return self.inputs[idx], self.labels[idx], self.metadata[idx]
 
-    def item_to_idx(self, item):
-        return self.item_mapping[self.item_mapping == item].index[0]
-
-    def idx_to_item(self, idx):
-        return self.item_mapping.iloc[idx]
-
     def one_hot_encode(self, item):
         vector = torch.zeros(self.item_count)
-        idx = self.item_to_idx(item)
+        idx = self.item_to_idx[item]
         vector[idx] = 1
         return vector.tolist()
 
     def one_hot_decode(self, vector):
         idx = torch.argmax(torch.tensor(vector)).item()
-        return idx_to_item(idx)
+        return idx_to_item[idx]
 
     def split_session(self, session):
         # removes unrelated old events from session
