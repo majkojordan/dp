@@ -5,7 +5,7 @@ import os
 from torch.nn import CrossEntropyLoss
 from torch.nn.functional import one_hot
 from torch.utils.data import DataLoader, random_split
-from torch.nn.utils.rnn import pad_sequence, pack_padded_sequence, pad_packed_sequence
+from torch.nn.utils.rnn import pad_sequence
 from datetime import timedelta
 from tqdm import tqdm
 
@@ -18,6 +18,7 @@ from config import (
     DATASET,
     EPOCHS,
     HIDDEN_SIZE,
+    EMBEDDING_SIZE,
     LEARNING_RATE,
     NUM_LAYERS,
     SAVE_CHECKPOINTS,
@@ -31,12 +32,6 @@ def collate_fn(sessions):
     _, lengths = zip(*metadata)
 
     inputs = pad_sequence(inputs, batch_first=True, padding_value=0).to(device)
-    inputs = one_hot(inputs, dataset.item_count).to(device)
-
-    inputs = pack_padded_sequence(
-        inputs, lengths, batch_first=True, enforce_sorted=False
-    ).to(device)
-
     labels = torch.stack(labels)
 
     return inputs, labels, metadata
@@ -69,8 +64,8 @@ print(f"Running on {device_name}")
 
 # create model
 model = RNN(
-    input_size=dataset.item_count,
-    output_size=dataset.item_count,
+    vocab_size=dataset.item_count,
+    embedding_size=EMBEDDING_SIZE,
     hidden_size=HIDDEN_SIZE,
     batch_size=BATCH_SIZE,
     num_layers=NUM_LAYERS,
@@ -131,18 +126,19 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                 long_session_count = 0
                 running_loss = 0
 
-                for batch, labels, metadata in tqdm(dataloaders[phase]):
-                    batch = batch.to(device, dtype=torch.float)
+                for inputs, labels, metadata in tqdm(dataloaders[phase]):
+                    inputs = inputs.to(device, dtype=torch.float)
                     labels = labels.to(device)
+                    session_ids, lengths = zip(*metadata)
 
                     optimizer.zero_grad()
                     model.reset_hidden()
 
-                    y_pred = model(batch)
+                    y_pred = model(inputs, lengths)
 
                     loss = loss_function(y_pred, labels)
 
-                    curr_batch_size = batch.batch_sizes[0].item()
+                    curr_batch_size = inputs.shape[0]
                     if is_train:
                         loss.backward()
                         optimizer.step()
@@ -154,8 +150,6 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                         )
 
                         # calculate hits@10 for long sessions only
-                        inputs, _ = pad_packed_sequence(batch, batch_first=True)
-                        session_ids, _ = zip(*metadata)
                         long_indexes = [
                             i in dataset.long_session_ids for i in session_ids
                         ]

@@ -102,7 +102,7 @@ class SequenceDataset(Dataset):
         # convert to input and label tensors + metadata
         sessions = [
             (
-                torch.tensor(s[:-1]),
+                torch.tensor(s[:-1], dtype=torch.long),
                 torch.tensor(s[-1]),
                 (session_id, len(s) - 1),
             )

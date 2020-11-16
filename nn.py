@@ -2,14 +2,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.nn.utils.rnn import pad_packed_sequence
+from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
 
 class RNN(nn.Module):
     def __init__(
         self,
-        input_size,
-        output_size,
+        vocab_size,
+        embedding_size,
         hidden_size=100,
         batch_size=1,
         num_layers=1,
@@ -19,12 +19,12 @@ class RNN(nn.Module):
 
         self.hidden_size = hidden_size
         self.hidden = None
-        self.output_size = output_size
         self.batch_size = batch_size
         self.num_layers = num_layers
 
-        self.gru = nn.GRU(input_size, hidden_size, num_layers, batch_first=True)
-        self.linear = nn.Linear(hidden_size, output_size)
+        self.embedding = nn.Embedding(vocab_size, embedding_size)
+        self.gru = nn.GRU(embedding_size, hidden_size, num_layers, batch_first=True)
+        self.linear = nn.Linear(hidden_size, vocab_size)
 
         self.device = device
         self.reset_hidden()
@@ -32,8 +32,12 @@ class RNN(nn.Module):
         self = self.to(device)
         print("Model initialized")
 
-    def forward(self, input):
-        output, self.hidden = self.gru(input, self.hidden)
+    def forward(self, input, lengths):
+        output = self.embedding(input.long())
+        output = pack_padded_sequence(
+            output, lengths, batch_first=True, enforce_sorted=False
+        ).to(self.device)
+        output, self.hidden = self.gru(output, self.hidden)
         output, lengths = pad_packed_sequence(output, batch_first=True)
         # get only last items
         output = output[torch.arange(output.shape[0]), lengths - 1]
