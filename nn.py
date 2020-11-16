@@ -9,7 +9,7 @@ class RNN(nn.Module):
     def __init__(
         self,
         vocab_size,
-        embedding_size,
+        embedding_size=100,
         hidden_size=100,
         batch_size=1,
         num_layers=1,

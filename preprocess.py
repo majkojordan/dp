@@ -148,7 +148,7 @@ def preprocess():
 
 # sql_to_csv(
 #     """
-#         SELECT product_id, customer_id, timestamp, session_id, categories
+#         SELECT product_id, customer_id, timestamp, session_id, title, categories
 #         FROM preprocessed_events_month_1603127051 e join products p on p.id = e.product_id
 #         ORDER BY timestamp DESC LIMIT 1000000
 #     """,

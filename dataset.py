@@ -55,25 +55,28 @@ class SequenceDataset(Dataset):
             self.idx_to_item = (
                 events.groupby("product_id")["product_id"].first().tolist()
             )
-            self.item_to_idx = {item: idx for idx, item in enumerate(self.idx_to_item)}
-            # create Series to find item category
-            self.item_to_category = events.groupby("product_id")["categories"].first()
-
-            # ensure that sessions consist only from items that are in word2vec dictionary
-            sessions = sessions.apply(
-                lambda x: [
-                    i for i in x if self.item_to_category[i] in self.word_model.wv
-                ]
-            )
         else:
             # create word2vec embeddings
             self.word_model = trainWord2Vec(category_sequences)
 
             # create mapping dictionaries
             self.idx_to_item = self.word_model.wv.index2word
-            self.item_to_idx = {item: idx for idx, item in enumerate(self.idx_to_item)}
 
-            # ensure that sessions consist only from items that are in word2vec dictionary
+        # create mappings
+        self.item_to_idx = {item: idx for idx, item in enumerate(self.idx_to_item)}
+        self.item_to_title = events.groupby("product_id")["title"].first()
+        self.idx_to_title = [self.item_to_title[i] for i in self.idx_to_item]
+        self.item_to_category = events.groupby("product_id")["categories"].first()
+        self.idx_to_category = [self.item_to_category[i] for i in self.idx_to_item]
+
+        # ensure that sessions consist only from items that are in word2vec dictionary
+        if USE_CATEGORY_SIMILARITY:
+            sessions = sessions.apply(
+                lambda x: [
+                    i for i in x if self.item_to_category[i] in self.word_model.wv
+                ]
+            )
+        else:
             sessions = sessions.apply(
                 lambda x: [i for i in x if i in self.word_model.wv]
             )
@@ -98,9 +101,10 @@ class SequenceDataset(Dataset):
         # map item names to indexes
         # sessions = sessions.apply(lambda x: list(map(lambda i: self.item_to_idx[i], x)))
         sessions = sessions.apply(lambda x: list(map(lambda i: self.item_to_idx[i], x)))
+        self.sessions = sessions
 
         # convert to input and label tensors + metadata
-        sessions = [
+        transformed_sessions = [
             (
                 torch.tensor(s[:-1], dtype=torch.long),
                 torch.tensor(s[-1]),
@@ -109,7 +113,7 @@ class SequenceDataset(Dataset):
             for s, session_id in zip(sessions, sessions.index)
         ]
 
-        self.inputs, self.labels, self.metadata = zip(*sessions)
+        self.inputs, self.labels, self.metadata = zip(*transformed_sessions)
 
         # precompute most popular items
         most_popular_item_ids = (
@@ -141,6 +145,12 @@ class SequenceDataset(Dataset):
     def one_hot_decode(self, vector):
         idx = torch.argmax(torch.tensor(vector)).item()
         return idx_to_item[idx]
+
+    def idx_to_info(self, idx):
+        return {
+            "title": self.idx_to_title[idx],
+            "category": self.idx_to_category[idx],
+        }
 
     def split_session(self, session):
         # removes unrelated old events from session

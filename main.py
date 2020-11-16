@@ -14,6 +14,7 @@ from config import (
     BATCH_SIZE,
     BASE_PATH,
     DB_CONNECTION_STRING,
+    DEBUG,
     DATA_DIR,
     DATASET,
     EPOCHS,
@@ -126,7 +127,9 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                 long_session_count = 0
                 running_loss = 0
 
-                for inputs, labels, metadata in tqdm(dataloaders[phase]):
+                for i, (inputs, labels, metadata) in enumerate(
+                    tqdm(dataloaders[phase])
+                ):
                     inputs = inputs.to(device, dtype=torch.float)
                     labels = labels.to(device)
                     session_ids, lengths = zip(*metadata)
@@ -148,6 +151,23 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                         hits_10 += sum(
                             [l in predicted_indexes_10 for l in labels.tolist()]
                         )
+
+                        # show the predictions
+                        if DEBUG and i == 0:
+                            for session_id, predictions in zip(
+                                session_ids, predicted_indexes_10
+                            ):
+                                session = [
+                                    dataset.idx_to_info(i)
+                                    for i in dataset.sessions.loc[session_id]
+                                ]
+                                predictions = [
+                                    dataset.idx_to_info(i) for i in predictions.tolist()
+                                ]
+                                print(
+                                    f"input: {session[:-1]},\nlabel: {session[-1]},\npredictions: {predictions}"
+                                )
+                                print_line_separator()
 
                         # calculate hits@10 for long sessions only
                         long_indexes = [
