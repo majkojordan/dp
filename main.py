@@ -15,6 +15,7 @@ from config import (
     BASE_PATH,
     DB_CONNECTION_STRING,
     DEBUG,
+    DEBUG_FOLDER,
     DATA_DIR,
     DATASET,
     EPOCHS,
@@ -25,7 +26,13 @@ from config import (
     SAVE_CHECKPOINTS,
 )
 from dataset import SequenceDataset
-from utils import get_timestamp, save_checkpoint, load_checkpoint, print_line_separator
+from utils import (
+    get_timestamp,
+    save_checkpoint,
+    load_checkpoint,
+    print_line_separator,
+    mkdir_p,
+)
 
 
 def collate_fn(sessions):
@@ -153,21 +160,32 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                         )
 
                         # show the predictions
-                        if DEBUG and i == 0:
-                            for session_id, predictions in zip(
-                                session_ids, predicted_indexes_10
-                            ):
-                                session = [
-                                    dataset.idx_to_info(i)
-                                    for i in dataset.sessions.loc[session_id]
-                                ]
-                                predictions = [
-                                    dataset.idx_to_info(i) for i in predictions.tolist()
-                                ]
-                                print(
-                                    f"input: {session[:-1]},\nlabel: {session[-1]},\npredictions: {predictions}"
-                                )
-                                print_line_separator()
+                        if DEBUG:
+                            path = os.path.join(
+                                BASE_PATH, DEBUG_FOLDER, f"epoch_{epoch}.txt"
+                            )
+                            dir_path = os.path.dirname(path)
+                            mkdir_p(dir_path)
+                            with open(path, "a") as f:
+                                for session_id, predictions in zip(
+                                    session_ids, predicted_indexes_10
+                                ):
+                                    session = [
+                                        dataset.idx_to_info(i)
+                                        for i in dataset.sessions.loc[session_id]
+                                    ]
+                                    predictions = [
+                                        dataset.idx_to_info(i)
+                                        for i in predictions.tolist()
+                                    ]
+                                    is_long = session_id in dataset.long_session_ids
+                                    f.write(
+                                        (
+                                            f"long: {is_long}, input: {session[:-1]},\n"
+                                            f"label: {session[-1]},\npredictions: {predictions}\n"
+                                            f"{'-' * 72}\n"
+                                        )
+                                    )
 
                         # calculate hits@10 for long sessions only
                         long_indexes = [

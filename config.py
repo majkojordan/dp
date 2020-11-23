@@ -10,6 +10,7 @@ DATASET = os.getenv("DATASET")
 CHECKPOINT_DIR = os.getenv("CHECKPOINT_DIR") or "checkpoints"
 SAVE_CHECKPOINTS = os.getenv("SAVE_CHECKPOINTS") or False
 DEBUG = os.getenv("DEBUG") or False
+DEBUG_FOLDER = os.getenv("DEBUG_FOLDER") or "debug"
 BATCH_SIZE = int(os.getenv("BATCH_SIZE"))
 EPOCHS = int(os.getenv("EPOCHS") or 10)
 HIDDEN_SIZE = int(os.getenv("HIDDEN_SIZE") or 100)
