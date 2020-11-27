@@ -57,7 +57,7 @@ class SequenceDataset(Dataset):
             )
         else:
             # create word2vec embeddings
-            self.word_model = trainWord2Vec(category_sequences)
+            self.word_model = trainWord2Vec(sessions)
 
             # create mapping dictionaries
             self.idx_to_item = self.word_model.wv.index2word

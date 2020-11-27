@@ -156,7 +156,10 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                         # calculate hits@10 - only for test as it would slow down training
                         predicted_indexes_10 = torch.topk(y_pred, 10, axis=1).indices
                         hits_10 += sum(
-                            [l in predicted_indexes_10 for l in labels.tolist()]
+                            [
+                                l in predicted_indexes_10[i]
+                                for i, l in enumerate(labels.tolist())
+                            ]
                         )
 
                         # show the predictions
@@ -178,11 +181,13 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                                         dataset.idx_to_info(i)
                                         for i in predictions.tolist()
                                     ]
-                                    is_long = session_id in dataset.long_session_ids
+
                                     f.write(
                                         (
-                                            f"long: {is_long}, input: {session[:-1]},\n"
+                                            f"input: {session[:-1]},\n"
                                             f"label: {session[-1]},\npredictions: {predictions}\n"
+                                            f"long: {session_id in dataset.long_session_ids}\n"
+                                            f"correct: {session[-1] in predictions}\n"
                                             f"{'-' * 72}\n"
                                         )
                                     )
@@ -199,7 +204,10 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                             long_preds, 10, axis=1
                         ).indices
                         long_hits_10 += sum(
-                            [l in predicted_indexes_10 for l in long_labels.tolist()]
+                            [
+                                l in predicted_indexes_10[i]
+                                for i, l in enumerate(long_labels.tolist())
+                            ]
                         )
                         long_session_count += long_inputs.shape[0]
 
