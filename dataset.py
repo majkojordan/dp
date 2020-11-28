@@ -11,9 +11,9 @@ from preprocess import remove_unfrequent_items
 
 
 def trainWord2Vec(series):
-    word_model = Word2Vec(series.tolist(), size=100, window=5, min_count=1)
-    word_model.init_sims(replace=True)
-    return word_model
+    model = Word2Vec(series.tolist(), size=300, window=3, min_count=1)
+    model.init_sims(replace=True)
+    return model
 
 
 class SequenceDataset(Dataset):
@@ -49,7 +49,7 @@ class SequenceDataset(Dataset):
             ]
 
             # create word2vec embeddings
-            self.word_model = trainWord2Vec(category_sequences)
+            self.wv_model = trainWord2Vec(category_sequences)
 
             # create mapping dictionaries
             self.idx_to_item = (
@@ -57,10 +57,10 @@ class SequenceDataset(Dataset):
             )
         else:
             # create word2vec embeddings
-            self.word_model = trainWord2Vec(sessions)
+            self.wv_model = trainWord2Vec(sessions)
 
             # create mapping dictionaries
-            self.idx_to_item = self.word_model.wv.index2word
+            self.idx_to_item = self.wv_model.wv.index2word
 
         # create mappings
         self.item_to_idx = {item: idx for idx, item in enumerate(self.idx_to_item)}
@@ -72,14 +72,10 @@ class SequenceDataset(Dataset):
         # ensure that sessions consist only from items that are in word2vec dictionary
         if USE_CATEGORY_SIMILARITY:
             sessions = sessions.apply(
-                lambda x: [
-                    i for i in x if self.item_to_category[i] in self.word_model.wv
-                ]
+                lambda x: [i for i in x if self.item_to_category[i] in self.wv_model.wv]
             )
         else:
-            sessions = sessions.apply(
-                lambda x: [i for i in x if i in self.word_model.wv]
-            )
+            sessions = sessions.apply(lambda x: [i for i in x if i in self.wv_model.wv])
 
         self.item_count = len(self.idx_to_item)
 
@@ -155,11 +151,11 @@ class SequenceDataset(Dataset):
     def split_session(self, session):
         # removes unrelated old events from session
         item_similarity = [
-            self.word_model.wv.similarity(
+            self.wv_model.wv.similarity(
                 self.item_to_category[session[i]], self.item_to_category[session[i + 1]]
             )
             if USE_CATEGORY_SIMILARITY
-            else self.word_model.wv.similarity(session[i], session[i + 1])
+            else self.wv_model.wv.similarity(session[i], session[i + 1])
             for i in range(len(session) - 1)
         ]
         # idx + 1, as similarity is between pairs, so similarities are shifted by one

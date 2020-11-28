@@ -56,7 +56,7 @@ dataloaders = {
         train, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
     ),
     "test": DataLoader(
-        test, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
+        test, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
     ),
 }
 data_sizes = {"train": train_size, "test": test_size}

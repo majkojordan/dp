@@ -4,6 +4,8 @@ import torch.nn.functional as F
 
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
+from config import HIDDEN_DROPOUT, INPUT_DROPOUT
+
 
 class RNN(nn.Module):
     def __init__(
@@ -23,7 +25,14 @@ class RNN(nn.Module):
         self.num_layers = num_layers
 
         self.embedding = nn.Embedding(vocab_size, embedding_size)
-        self.gru = nn.GRU(embedding_size, hidden_size, num_layers, batch_first=True)
+        self.dropout = nn.Dropout(INPUT_DROPOUT)
+        self.gru = nn.GRU(
+            embedding_size,
+            hidden_size,
+            num_layers,
+            batch_first=True,
+            dropout=HIDDEN_DROPOUT,
+        )
         self.linear = nn.Linear(hidden_size, vocab_size)
 
         self.device = device
@@ -34,6 +43,7 @@ class RNN(nn.Module):
 
     def forward(self, input, lengths):
         output = self.embedding(input.long())
+        output = self.dropout(output)
         output = pack_padded_sequence(
             output, lengths, batch_first=True, enforce_sorted=False
         ).to(self.device)
