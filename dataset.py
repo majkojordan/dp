@@ -6,12 +6,12 @@ from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 from gensim.models import Word2Vec
 
-from config import SIMILARITY_THRESHOLD, USE_CATEGORY_SIMILARITY
+from config import SIMILARITY_THRESHOLD, USE_CATEGORY_SIMILARITY, EMBEDDING_SIZE
 from preprocess import remove_unfrequent_items
 
 
 def trainWord2Vec(series):
-    model = Word2Vec(series.tolist(), size=300, window=3, min_count=1)
+    model = Word2Vec(series.tolist(), size=EMBEDDING_SIZE, window=3, min_count=1)
     model.init_sims(replace=True)
     return model
 

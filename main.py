@@ -24,6 +24,7 @@ from config import (
     LEARNING_RATE,
     NUM_LAYERS,
     SAVE_CHECKPOINTS,
+    USE_CATEGORY_SIMILARITY,
 )
 from dataset import SequenceDataset
 from utils import (
@@ -70,6 +71,10 @@ device = torch.device(device_name)
 print(f"Running on {device_name}")
 
 
+pretrained_embeddings = (
+    dataset.wv_model.wv.vectors if not USE_CATEGORY_SIMILARITY else None
+)
+
 # create model
 model = RNN(
     vocab_size=dataset.item_count,
@@ -78,6 +83,7 @@ model = RNN(
     batch_size=BATCH_SIZE,
     num_layers=NUM_LAYERS,
     device=device,
+    pretrained_embeddings=pretrained_embeddings,
 )
 loss_function = CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)

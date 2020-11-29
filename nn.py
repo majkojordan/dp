@@ -11,6 +11,7 @@ class RNN(nn.Module):
     def __init__(
         self,
         vocab_size,
+        pretrained_embeddings=None,
         embedding_size=100,
         hidden_size=100,
         batch_size=1,
@@ -24,7 +25,12 @@ class RNN(nn.Module):
         self.batch_size = batch_size
         self.num_layers = num_layers
 
-        self.embedding = nn.Embedding(vocab_size, embedding_size)
+        # self.embedding = nn.Embedding(vocab_size, embedding_size)
+        self.embedding = (
+            nn.Embedding.from_pretrained(torch.FloatTensor(pretrained_embeddings))
+            if pretrained_embeddings is not None
+            else nn.Embedding(vocab_size, embedding_size)
+        )
         self.dropout = nn.Dropout(INPUT_DROPOUT)
         self.gru = nn.GRU(
             embedding_size,
