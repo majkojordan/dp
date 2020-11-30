@@ -38,6 +38,25 @@ class SequenceDataset(Dataset):
         # remove sessions where label is in input sequence
         sessions = sessions[sessions.apply(lambda x: x[-1] not in x[:-1])]
 
+        # train word2vec embeddings
+        self.wv_model = trainWord2Vec(sessions)
+        # self.idx_to_item = (
+        #     events.groupby("product_id")["product_id"].first().tolist()
+        # )
+
+        # ensure that sessions consist only from items that are in word2vec dictionary
+        sessions = sessions.apply(lambda x: [i for i in x if i in self.wv_model.wv])
+
+        # create mappings
+        self.idx_to_item = self.wv_model.wv.index2word
+        self.item_to_idx = {item: idx for idx, item in enumerate(self.idx_to_item)}
+        self.item_to_title = events.groupby("product_id")["title"].first()
+        self.idx_to_title = [self.item_to_title[i] for i in self.idx_to_item]
+        self.item_to_category = events.groupby("product_id")["categories"].first()
+        self.idx_to_category = [self.item_to_category[i] for i in self.idx_to_item]
+
+        self.item_count = len(self.idx_to_item)
+
         if USE_CATEGORY_SIMILARITY:
             # get category click sequences
             events["categories"] = events["categories"].astype(str)
@@ -49,35 +68,16 @@ class SequenceDataset(Dataset):
             ]
 
             # create word2vec embeddings
-            self.wv_model = trainWord2Vec(category_sequences)
+            self.wv_category_model = trainWord2Vec(category_sequences)
 
-            # create mapping dictionaries
-            self.idx_to_item = (
-                events.groupby("product_id")["product_id"].first().tolist()
-            )
-        else:
-            # create word2vec embeddings
-            self.wv_model = trainWord2Vec(sessions)
-
-            # create mapping dictionaries
-            self.idx_to_item = self.wv_model.wv.index2word
-
-        # create mappings
-        self.item_to_idx = {item: idx for idx, item in enumerate(self.idx_to_item)}
-        self.item_to_title = events.groupby("product_id")["title"].first()
-        self.idx_to_title = [self.item_to_title[i] for i in self.idx_to_item]
-        self.item_to_category = events.groupby("product_id")["categories"].first()
-        self.idx_to_category = [self.item_to_category[i] for i in self.idx_to_item]
-
-        # ensure that sessions consist only from items that are in word2vec dictionary
-        if USE_CATEGORY_SIMILARITY:
+            # ensure that sessions consist only from items that are in word2vec dictionary
             sessions = sessions.apply(
-                lambda x: [i for i in x if self.item_to_category[i] in self.wv_model.wv]
+                lambda x: [
+                    i
+                    for i in x
+                    if self.item_to_category[i] in self.wv_category_model.wv
+                ]
             )
-        else:
-            sessions = sessions.apply(lambda x: [i for i in x if i in self.wv_model.wv])
-
-        self.item_count = len(self.idx_to_item)
 
         # remember long session ids - they are used in evaluation
         self.long_session_ids = sessions[
@@ -151,7 +151,7 @@ class SequenceDataset(Dataset):
     def split_session(self, session):
         # removes unrelated old events from session
         item_similarity = [
-            self.wv_model.wv.similarity(
+            self.wv_category_model.wv.similarity(
                 self.item_to_category[session[i]], self.item_to_category[session[i + 1]]
             )
             if USE_CATEGORY_SIMILARITY
@@ -166,3 +166,6 @@ class SequenceDataset(Dataset):
         ]
         last_subsession = np.split(session, split_indexes)[-1]
         return last_subsession
+
+    def get_item_embeddings(self):
+        return self.wv_model.wv.vectors

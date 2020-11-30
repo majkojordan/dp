@@ -70,10 +70,8 @@ device_name = "cuda" if torch.cuda.is_available() else "cpu"
 device = torch.device(device_name)
 print(f"Running on {device_name}")
 
-
-pretrained_embeddings = (
-    dataset.wv_model.wv.vectors if not USE_CATEGORY_SIMILARITY else None
-)
+# load embeddings
+pretrained_embeddings = dataset.get_item_embeddings()
 
 # create model
 model = RNN(
