@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.nn.utils.rnn import pad_sequence
 from datetime import timedelta
 from tqdm import tqdm
+from pprint import pformat
 
 from nn import RNN
 from config import (
@@ -188,8 +189,9 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
 
                                     f.write(
                                         (
-                                            f"input: {session[:-1]},\n"
-                                            f"label: {session[-1]},\npredictions: {predictions}\n"
+                                            f"INPUT:\n{pformat(session[:-1], width=160)}\n\n"
+                                            f"LABEL:\n{pformat(session[-1], width=160)}\n\n"
+                                            f"PREDICTIONS:\n{pformat(predictions, width=160)}\n\n"
                                             f"long: {session_id in dataset.long_session_ids}\n"
                                             f"correct: {session[-1] in predictions}\n"
                                             f"{'-' * 72}\n"
