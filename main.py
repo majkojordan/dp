@@ -114,13 +114,20 @@ print_line_separator()
 
 
 # train
-def train(dataloaders, epochs=10, save_checkpoints=False):
+def train(dataloaders, epochs=10, debug=False, save_checkpoints=False):
     print(f"Training")
 
     save_dir = f"checkpoint_{get_timestamp()}"
 
     for epoch in range(1, epochs + 1):
         print(f"Epoch: {epoch} / {epochs}\n")
+
+        if debug:
+            debug_path = os.path.join(BASE_PATH, DEBUG_FOLDER, f"epoch_{epoch}.txt")
+            debug_dir_path = os.path.dirname(debug_path)
+            mkdir_p(debug_dir_path)
+            debug_f = open(debug_path, "w")
+
         for phase in ["train", "test"]:
             print(f"Phase: {phase}")
 
@@ -168,35 +175,28 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
                         )
 
                         # show the predictions
-                        if DEBUG:
-                            path = os.path.join(
-                                BASE_PATH, DEBUG_FOLDER, f"epoch_{epoch}.txt"
-                            )
-                            dir_path = os.path.dirname(path)
-                            mkdir_p(dir_path)
-                            with open(path, "a") as f:
-                                for session_id, predictions in zip(
-                                    session_ids, predicted_indexes_10
-                                ):
-                                    session = [
-                                        dataset.idx_to_info(i)
-                                        for i in dataset.sessions.loc[session_id]
-                                    ]
-                                    predictions = [
-                                        dataset.idx_to_info(i)
-                                        for i in predictions.tolist()
-                                    ]
+                        if debug:
+                            for session_id, predictions in zip(
+                                session_ids, predicted_indexes_10
+                            ):
+                                session = [
+                                    dataset.idx_to_info(i)
+                                    for i in dataset.sessions.loc[session_id]
+                                ]
+                                predictions = [
+                                    dataset.idx_to_info(i) for i in predictions.tolist()
+                                ]
 
-                                    f.write(
-                                        (
-                                            f"INPUT:\n{pformat(session[:-1], width=160)}\n\n"
-                                            f"LABEL:\n{pformat(session[-1], width=160)}\n\n"
-                                            f"PREDICTIONS:\n{pformat(predictions, width=160)}\n\n"
-                                            f"long: {session_id in dataset.long_session_ids}\n"
-                                            f"correct: {session[-1] in predictions}\n"
-                                            f"{'-' * 72}\n"
-                                        )
+                                debug_f.write(
+                                    (
+                                        f"INPUT:\n{pformat(session[:-1], width=160)}\n\n"
+                                        f"LABEL:\n{pformat(session[-1], width=160)}\n\n"
+                                        f"PREDICTIONS:\n{pformat(predictions, width=160)}\n\n"
+                                        f"long: {session_id in dataset.long_session_ids}\n"
+                                        f"correct: {session[-1] in predictions}\n"
+                                        f"{'-' * 72}\n"
                                     )
+                                )
 
                         # calculate hits@10 for long sessions only
                         long_indexes = [
@@ -239,7 +239,10 @@ def train(dataloaders, epochs=10, save_checkpoints=False):
         if save_checkpoints:
             save_checkpoint(save_dir, model, optimizer, epoch, loss)
 
+        if debug:
+            debug_f.close()
+
         print_line_separator()
 
 
-train(dataloaders, epochs=EPOCHS, save_checkpoints=SAVE_CHECKPOINTS)
+train(dataloaders, epochs=EPOCHS, debug=DEBUG, save_checkpoints=SAVE_CHECKPOINTS)
