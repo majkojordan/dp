@@ -10,6 +10,9 @@ from config import SIMILARITY_THRESHOLD, USE_CATEGORY_SIMILARITY, EMBEDDING_SIZE
 from preprocess import remove_unfrequent_items
 
 
+SPLIT_SESSIONS = SIMILARITY_THRESHOLD > 0
+
+
 def trainWord2Vec(series):
     model = Word2Vec(series.tolist(), size=EMBEDDING_SIZE, window=3, min_count=1)
     model.init_sims(replace=True)
@@ -19,6 +22,15 @@ def trainWord2Vec(series):
 class SequenceDataset(Dataset):
     def __init__(self, dataset_path):
         events = pd.read_csv(dataset_path)
+        # colnames = ["session_id", "date", "product_id", "category"]
+        # events = pd.read_csv(
+        #     "data/yoochoose-data/yoochoose-clicks-1000000.dat",
+        #     names=colnames,
+        #     header=None,
+        # )
+        # events["title"] = events["product_id"]
+        # events["categories"] = events["product_id"]
+        # events["customer_id"] = events["session_id"]
 
         # remove items that don't have significant impact
         events = remove_unfrequent_items(events, 5)
@@ -83,16 +95,6 @@ class SequenceDataset(Dataset):
         self.long_session_ids = sessions[
             sessions.apply(lambda x: len(x) > 10)
         ].index.tolist()
-        # print(long_session_ids)
-        # split sessions to subsessions
-        # print(sum(len(x) > 10 for x in sessions.tolist()) / len(sessions.tolist()))
-        if SIMILARITY_THRESHOLD > 0:
-            sessions = sessions.apply(self.split_session)
-
-        # print(sessions["02f3e799-c152-4734-a203-bad74e2366e4"])
-
-        # remove one item sessions
-        sessions = sessions[sessions.apply(lambda x: len(x) > 2)]
 
         # map item names to indexes
         # sessions = sessions.apply(lambda x: list(map(lambda i: self.item_to_idx[i], x)))
@@ -100,14 +102,14 @@ class SequenceDataset(Dataset):
         self.sessions = sessions
 
         # convert to input and label tensors + metadata
-        transformed_sessions = [
-            (
-                torch.tensor(s[:-1], dtype=torch.long),
-                torch.tensor(s[-1]),
-                (session_id, len(s) - 1),
-            )
-            for s, session_id in zip(sessions, sessions.index)
-        ]
+        transformed_sessions = []
+        for s, session_id in zip(sessions, sessions.index):
+            # input = self.split_session(s[:-1]) if SPLIT_SESSIONS else s[:-1]
+            input = self.filter_session(s[:-1]) if SPLIT_SESSIONS else s[:-1]
+            input = torch.tensor(input, dtype=torch.long)
+            label = torch.tensor(s[-1])
+            metadata = (session_id, len(input))
+            transformed_sessions.append((input, label, metadata))
 
         self.inputs, self.labels, self.metadata = zip(*transformed_sessions)
 
@@ -149,13 +151,15 @@ class SequenceDataset(Dataset):
         }
 
     def split_session(self, session):
-        # removes unrelated old events from session
+        # removes unrelated old events from session - keeps only last relevant subsession
         item_similarity = [
             self.wv_category_model.wv.similarity(
-                self.item_to_category[session[i]], self.item_to_category[session[i + 1]]
+                self.idx_to_category[session[i]], self.idx_to_category[session[i + 1]]
             )
             if USE_CATEGORY_SIMILARITY
-            else self.wv_model.wv.similarity(session[i], session[i + 1])
+            else self.wv_model.wv.similarity(
+                self.idx_to_item[session[i]], self.idx_to_item[session[i + 1]]
+            )
             for i in range(len(session) - 1)
         ]
         # idx + 1, as similarity is between pairs, so similarities are shifted by one
@@ -166,6 +170,28 @@ class SequenceDataset(Dataset):
         ]
         last_subsession = np.split(session, split_indexes)[-1]
         return last_subsession
+
+    def filter_session(self, session):
+        if USE_CATEGORY_SIMILARITY:
+            last_interaction = self.idx_to_category[session[-1]]
+            filtered_session = [
+                i
+                for i in session
+                if self.wv_category_model.wv.similarity(
+                    self.idx_to_category[i], last_interaction
+                )
+                > SIMILARITY_THRESHOLD
+            ]
+        else:
+            last_interaction = self.idx_to_item[session[-1]]
+            filtered_session = [
+                i
+                for i in session
+                if self.wv_model.wv.similarity(self.idx_to_item[i], last_interaction)
+                > SIMILARITY_THRESHOLD
+            ]
+
+        return filtered_session
 
     def get_item_embeddings(self):
         return self.wv_model.wv.vectors

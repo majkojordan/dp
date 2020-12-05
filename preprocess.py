@@ -8,12 +8,8 @@ from utils import get_timestamp
 
 
 def sql_to_csv(query, path):
-    # sql_to_csv("SELECT * FROM preprocessed_events_month_1603127051 limit 1000", 'data/events_month_1000.csv')
-    df = pd.read_sql(
-        query,
-        DB_CONNECTION_STRING,
-    )
-    df.to_csv(path)
+    for chunk in pd.read_sql(query, DB_CONNECTION_STRING, chunksize=100000):
+        chunk.to_csv(path, mode="a")
 
 
 def add_session_ids(df):
@@ -75,7 +71,7 @@ def transform_to_sessions(df):
     return s.rename("click_sequence")
 
 
-def preprocess_events():
+def preprocess_events_batch():
     timestamp = get_timestamp()
     last_user_events = None
 
@@ -83,7 +79,7 @@ def preprocess_events():
     for chunk in tqdm(pd.read_sql(query, DB_CONNECTION_STRING, chunksize=100000)):
         df = pd.concat([last_user_events, chunk], ignore_index=True)
         df, last_user_events = separate_last_user_events(df)
-        df = remove_unfrequent_items(df, 10)
+        # df = remove_unfrequent_items(df, 10)
         # df = add_session_ids(df)
         # df = remove_short_sessions(df)
         # df.to_sql(f"preprocessed_events_{timestamp}", DB_CONNECTION_STRING, if_exists="append", index=False)
@@ -96,19 +92,16 @@ def preprocess_events():
         )
 
 
-def preprocess_events_sample():
+def preprocess_events():
     timestamp = get_timestamp()
-    last_user_events = None
 
-    # query = "SELECT * FROM events WHERE event_type = 'view_item' ORDER BY customer_id"
-    query = "SELECT * FROM events WHERE event_type = 'view_item' AND timestamp > '2019-03-01' ORDER BY customer_id"
+    query = "SELECT * FROM events WHERE event_type = 'view_item' AND timestamp > '2019-02-01' AND timestamp < '2019-04-01' ORDER BY customer_id"
     df = pd.read_sql(query, DB_CONNECTION_STRING)
-    df = remove_unfrequent_items(df, 10)
+    # df = remove_unfrequent_items(df, 10)
     df = add_session_ids(df)
-    df = remove_short_sessions(df)
-    print(df)
+    # df = remove_short_sessions(df)
     df.to_sql(
-        f"preprocessed_events_month_{timestamp}",
+        f"preprocessed_events_{timestamp}",
         DB_CONNECTION_STRING,
         if_exists="append",
         index=False,
@@ -128,29 +121,17 @@ def get_product_counts(df):
     return product_counts_df
 
 
-def preprocess_products():
-    table_name = f"product_counts_{get_timestamp()}"
-
-    s = pd.Series(dtype=int)
-    query = f"SELECT * FROM events"
-    for chunk in pd.read_sql(query, DB_CONNECTION_STRING, chunksize=100000):
-        s = s.add(get_product_counts(chunk), fill_value=0).astype(int)
-
-    s.rename("count").to_sql(table_name, DB_CONNECTION_STRING, index_label="product_id")
-
-    return table_name
-
-
 def preprocess():
     preprocess_events()
-    preprocess_products()
 
 
 # sql_to_csv(
 #     """
 #         SELECT product_id, customer_id, timestamp, session_id, title, categories
-#         FROM preprocessed_events_month_1603127051 e join products p on p.id = e.product_id
-#         ORDER BY timestamp DESC LIMIT 1000000
+#         FROM preprocessed_events_1607009910 e join products p on p.id = e.product_id
 #     """,
-#     "data/events_month_1000000.csv",
+#     "data/events.csv",
 # )
+
+# preprocess_events()
+# sql_to_csv("SELECT * FROM preprocessed_events_1607009910", "data/events.csv")

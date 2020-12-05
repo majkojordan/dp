@@ -39,7 +39,6 @@ from utils import (
 
 def collate_fn(sessions):
     inputs, labels, metadata = zip(*sessions)
-    _, lengths = zip(*metadata)
 
     inputs = pad_sequence(inputs, batch_first=True, padding_value=0).to(device)
     labels = torch.stack(labels)
