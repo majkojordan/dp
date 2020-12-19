@@ -108,8 +108,6 @@ def preprocess_events():
         chunksize=100000,
         method="multi",
     )
-    # s = transform_to_sessions(df)
-    # s.to_sql(f"click_sequences_{timestamp}", DB_CONNECTION_STRING, if_exists="append", index=False)
 
 
 def get_product_counts(df):

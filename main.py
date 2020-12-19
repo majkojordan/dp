@@ -24,14 +24,14 @@ from config import (
     EMBEDDING_SIZE,
     LEARNING_RATE,
     NUM_LAYERS,
-    SAVE_CHECKPOINTS,
     USE_CATEGORY_SIMILARITY,
+    MAX_TEST_SIZE,
+    HIDDEN_DROPOUT,
+    INPUT_DROPOUT,
 )
 from dataset import SequenceDataset
 from utils import (
     get_timestamp,
-    save_checkpoint,
-    load_checkpoint,
     print_line_separator,
     mkdir_p,
 )
@@ -49,7 +49,7 @@ def collate_fn(sessions):
 # load data
 dataset_path = os.path.join(BASE_PATH, DATA_DIR, DATASET)
 dataset = SequenceDataset(dataset_path)
-test_size = min(int(0.2 * len(dataset)), 10000)
+test_size = min(int(0.2 * len(dataset)), MAX_TEST_SIZE)
 train_size = len(dataset) - test_size
 train, test = random_split(dataset, [train_size, test_size])
 dataloaders = {
@@ -80,26 +80,17 @@ model = RNN(
     hidden_size=HIDDEN_SIZE,
     batch_size=BATCH_SIZE,
     num_layers=NUM_LAYERS,
+    input_dropout=INPUT_DROPOUT,
+    hidden_dropout=HIDDEN_DROPOUT,
     device=device,
     pretrained_embeddings=pretrained_embeddings,
 )
 loss_function = CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
-print_line_separator()
-
-
-# load checkpoint
-use_checkpoint = False
-checkpoint = {"name": "checkpoint_1603809820", "epoch": 2}
-
-if use_checkpoint:
-    checkpoint = load_checkpoint(
-        checkpoint["name"], checkpoint["epoch"], model, optimizer
-    )
-    print(checkpoint["loss"].item(), checkpoint["epoch"])
 
 
 # calculate baseline
+print_line_separator()
 print("Calculating baseline scores - most popular")
 popular_acc = 0
 popular_hits_10 = 0
@@ -113,10 +104,8 @@ print_line_separator()
 
 
 # train
-def train(dataloaders, epochs=10, debug=False, save_checkpoints=False):
+def train(dataloaders, epochs=10, debug=False):
     print(f"Training")
-
-    save_dir = f"checkpoint_{get_timestamp()}"
 
     for epoch in range(1, epochs + 1):
         print(f"Epoch: {epoch} / {epochs}\n")
@@ -235,13 +224,10 @@ def train(dataloaders, epochs=10, debug=False, save_checkpoints=False):
                     f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}, acc@10: {acc_10:.4f}, long acc@10: {long_acc_10:.4f}\n"
                 )
 
-        if save_checkpoints:
-            save_checkpoint(save_dir, model, optimizer, epoch, loss)
-
         if debug:
             debug_f.close()
 
         print_line_separator()
 
 
-train(dataloaders, epochs=EPOCHS, debug=DEBUG, save_checkpoints=SAVE_CHECKPOINTS)
+train(dataloaders, epochs=EPOCHS, debug=DEBUG)

@@ -4,8 +4,6 @@ import torch.nn.functional as F
 
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 
-from config import HIDDEN_DROPOUT, INPUT_DROPOUT
-
 
 class RNN(nn.Module):
     def __init__(
@@ -17,6 +15,8 @@ class RNN(nn.Module):
         batch_size=1,
         num_layers=1,
         device=torch.device("cpu"),
+        input_dropout=0,
+        hidden_dropout=0,
     ):
         super(RNN, self).__init__()
 
@@ -31,13 +31,13 @@ class RNN(nn.Module):
             if pretrained_embeddings is not None
             else nn.Embedding(vocab_size, embedding_size)
         )
-        self.dropout = nn.Dropout(INPUT_DROPOUT)
+        self.dropout = nn.Dropout(input_dropout)
         self.gru = nn.GRU(
             embedding_size,
             hidden_size,
             num_layers,
             batch_first=True,
-            dropout=HIDDEN_DROPOUT,
+            dropout=hidden_dropout,
         )
         self.linear = nn.Linear(hidden_size, vocab_size)
 
