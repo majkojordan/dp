@@ -29,6 +29,7 @@ from config import (
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
     SIMILARITY_THRESHOLD,
+    MANUAL_SEED,
 )
 from dataset import SequenceDataset
 from utils import (
@@ -38,6 +39,11 @@ from utils import (
 )
 
 SPLIT_SESSIONS = SIMILARITY_THRESHOLD > 0
+
+
+# set manual seed to reproduce the results
+if MANUAL_SEED > 0:
+    torch.manual_seed(MANUAL_SEED)
 
 
 def collate_fn(session_data):
