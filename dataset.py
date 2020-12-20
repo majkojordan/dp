@@ -10,9 +10,6 @@ from config import SIMILARITY_THRESHOLD, USE_CATEGORY_SIMILARITY, EMBEDDING_SIZE
 from preprocess import remove_unfrequent_items
 
 
-SPLIT_SESSIONS = SIMILARITY_THRESHOLD > 0
-
-
 def trainWord2Vec(series):
     model = Word2Vec(series.tolist(), size=EMBEDDING_SIZE, window=3, min_count=1)
     model.init_sims(replace=True)
@@ -101,18 +98,6 @@ class SequenceDataset(Dataset):
         sessions = sessions.apply(lambda x: list(map(lambda i: self.item_to_idx[i], x)))
         self.sessions = sessions
 
-        # convert to input and label tensors + metadata
-        transformed_sessions = []
-        for s, session_id in zip(sessions, sessions.index):
-            # input = self.split_session(s[:-1]) if SPLIT_SESSIONS else s[:-1]
-            input = self.filter_session(s[:-1]) if SPLIT_SESSIONS else s[:-1]
-            input = torch.tensor(input, dtype=torch.long)
-            label = torch.tensor(s[-1])
-            metadata = (session_id, len(input))
-            transformed_sessions.append((input, label, metadata))
-
-        self.inputs, self.labels, self.metadata = zip(*transformed_sessions)
-
         # precompute most popular items
         most_popular_item_ids = (
             events.groupby(["customer_id", "product_id"])
@@ -125,14 +110,15 @@ class SequenceDataset(Dataset):
         self.most_popular_items = [self.item_to_idx[i] for i in most_popular_item_ids]
 
         print(
-            f"Dataset initialized ({len(self.inputs)} sessions, {self.item_count} items)"
+            f"Dataset initialized ({len(self.sessions)} sessions, {self.item_count} items)"
         )
 
     def __len__(self):
-        return len(self.inputs)
+        return len(self.sessions)
 
     def __getitem__(self, idx):
-        return self.inputs[idx], self.labels[idx], self.metadata[idx]
+        # return self.inputs[idx], self.labels[idx], self.metadata[idx]
+        return self.sessions[idx], self.sessions.index[idx]
 
     def one_hot_encode(self, item):
         vector = torch.zeros(self.item_count)

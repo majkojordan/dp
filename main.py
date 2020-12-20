@@ -28,6 +28,7 @@ from config import (
     MAX_TEST_SIZE,
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
+    SIMILARITY_THRESHOLD,
 )
 from dataset import SequenceDataset
 from utils import (
@@ -36,9 +37,21 @@ from utils import (
     mkdir_p,
 )
 
+SPLIT_SESSIONS = SIMILARITY_THRESHOLD > 0
 
-def collate_fn(sessions):
-    inputs, labels, metadata = zip(*sessions)
+
+def collate_fn(session_data):
+    # convert to input and label tensors + metadata
+    transformed_sessions = []
+    for s, session_id in session_data:
+        # input = dataset.split_session(s[:-1]) if SPLIT_SESSIONS else s[:-1]
+        input = dataset.filter_session(s[:-1]) if SPLIT_SESSIONS else s[:-1]
+        input = torch.tensor(input, dtype=torch.long)
+        label = torch.tensor(s[-1])
+        metadata = (session_id, len(input))
+        transformed_sessions.append((input, label, metadata))
+
+    inputs, labels, metadata = zip(*transformed_sessions)
 
     inputs = pad_sequence(inputs, batch_first=True, padding_value=0).to(device)
     labels = torch.stack(labels)
@@ -57,7 +70,7 @@ dataloaders = {
         train, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
     ),
     "test": DataLoader(
-        test, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
+        test, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
     ),
 }
 data_sizes = {"train": train_size, "test": test_size}
