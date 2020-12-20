@@ -6,12 +6,19 @@ from torch.utils.data import Dataset
 from torch.nn.utils.rnn import pad_sequence
 from gensim.models import Word2Vec
 
-from config import SIMILARITY_THRESHOLD, USE_CATEGORY_SIMILARITY, EMBEDDING_SIZE
+from config import (
+    SIMILARITY_THRESHOLD,
+    USE_CATEGORY_SIMILARITY,
+    EMBEDDING_SIZE,
+    WINDOW_SIZE,
+)
 from preprocess import remove_unfrequent_items
 
 
-def trainWord2Vec(series):
-    model = Word2Vec(series.tolist(), size=EMBEDDING_SIZE, window=3, min_count=1)
+def trainWord2Vec(series, embedding_size=100, window_size=3):
+    model = Word2Vec(
+        series.tolist(), size=embedding_size, window=window_size, min_count=1
+    )
     model.init_sims(replace=True)
     return model
 
@@ -48,7 +55,9 @@ class SequenceDataset(Dataset):
         sessions = sessions[sessions.apply(lambda x: x[-1] not in x[:-1])]
 
         # train word2vec embeddings
-        self.wv_model = trainWord2Vec(sessions)
+        self.wv_model = trainWord2Vec(
+            sessions, embedding_size=EMBEDDING_SIZE, window_size=WINDOW_SIZE
+        )
         # self.idx_to_item = (
         #     events.groupby("product_id")["product_id"].first().tolist()
         # )
@@ -77,7 +86,11 @@ class SequenceDataset(Dataset):
             ]
 
             # create word2vec embeddings
-            self.wv_category_model = trainWord2Vec(category_sequences)
+            self.wv_category_model = trainWord2Vec(
+                category_sequences,
+                embedding_size=EMBEDDING_SIZE,
+                window_size=WINDOW_SIZE,
+            )
 
             # ensure that sessions consist only from items that are in word2vec dictionary
             sessions = sessions.apply(
