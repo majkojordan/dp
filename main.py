@@ -28,8 +28,8 @@ from config import (
     MAX_TEST_SIZE,
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
-    SIMILARITY_THRESHOLD,
     MANUAL_SEED,
+    DETECT_PREFERENCE_CHANGE,
 )
 from dataset import SequenceDataset
 from utils import (
@@ -37,8 +37,6 @@ from utils import (
     print_line_separator,
     mkdir_p,
 )
-
-SPLIT_SESSIONS = SIMILARITY_THRESHOLD > 0
 
 
 # set manual seed to reproduce the results
@@ -50,8 +48,13 @@ def collate_fn(session_data):
     # convert to input and label tensors + metadata
     transformed_sessions = []
     for s, session_id in session_data:
-        # input = dataset.split_session(s[:-1]) if SPLIT_SESSIONS else s[:-1]
-        input = dataset.filter_session(s[:-1]) if SPLIT_SESSIONS else s[:-1]
+        input = s[:-1]
+
+        if DETECT_PREFERENCE_CHANGE == 1:
+            input = dataset.split_session(input)
+        elif DETECT_PREFERENCE_CHANGE == 2:
+            input = dataset.filter_session(input)
+
         input = torch.tensor(input, dtype=torch.long)
         label = torch.tensor(s[-1])
         metadata = (session_id, len(input))

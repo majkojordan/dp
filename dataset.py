@@ -75,31 +75,31 @@ class SequenceDataset(Dataset):
 
         self.item_count = len(self.idx_to_item)
 
-        if USE_CATEGORY_SIMILARITY:
-            # get category click sequences
-            events["categories"] = events["categories"].astype(str)
-            category_sequences = events.groupby("session_id")["categories"].apply(list)
+        # get category click sequences
+        events["categories"] = events["categories"].astype(str)
+        category_sequences = events.groupby("session_id")["categories"].apply(list)
 
-            # remove one item sessions
-            category_sequences = category_sequences[
-                category_sequences.apply(lambda x: len(x) > 2)
+        # remove one item sessions
+        category_sequences = category_sequences[
+            category_sequences.apply(lambda x: len(x) > 2)
+        ]
+
+        # create word2vec embeddings
+        self.wv_category_model = trainWord2Vec(
+            category_sequences,
+            embedding_size=EMBEDDING_SIZE,
+            window_size=WINDOW_SIZE,
+        )
+
+        # ensure that sessions consist only from items that are in word2vec dictionary
+        sessions = sessions.apply(
+            lambda x: [
+                i for i in x if self.item_to_category[i] in self.wv_category_model.wv
             ]
+        )
 
-            # create word2vec embeddings
-            self.wv_category_model = trainWord2Vec(
-                category_sequences,
-                embedding_size=EMBEDDING_SIZE,
-                window_size=WINDOW_SIZE,
-            )
-
-            # ensure that sessions consist only from items that are in word2vec dictionary
-            sessions = sessions.apply(
-                lambda x: [
-                    i
-                    for i in x
-                    if self.item_to_category[i] in self.wv_category_model.wv
-                ]
-            )
+        # remove one item sessions
+        sessions = sessions[sessions.apply(lambda x: len(x) > 2)]
 
         # remember long session ids - they are used in evaluation
         self.long_session_ids = sessions[
