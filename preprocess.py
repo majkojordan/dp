@@ -34,15 +34,6 @@ def remove_short_sessions(df, threshold=2):
 
 
 def remove_unfrequent_items(df, threshold=10):
-    # product_counts = df.groupby("product_id").size()
-    # products_to_keep = product_counts[product_counts >= threshold].index
-
-    # category_counts = df.groupby("categories").size()
-    # categories_to_keep = category_counts[category_counts >= threshold].index
-    # return df[
-    #     df["product_id"].isin(products_to_keep)
-    #     & df["categories"].isin(categories_to_keep)
-    # ]
     product_counts = df.groupby("product_id").size()
     products_to_keep = product_counts[product_counts >= threshold].index
     return df[df["product_id"].isin(products_to_keep)]
@@ -79,10 +70,6 @@ def preprocess_events_batch():
     for chunk in tqdm(pd.read_sql(query, DB_CONNECTION_STRING, chunksize=100000)):
         df = pd.concat([last_user_events, chunk], ignore_index=True)
         df, last_user_events = separate_last_user_events(df)
-        # df = remove_unfrequent_items(df, 10)
-        # df = add_session_ids(df)
-        # df = remove_short_sessions(df)
-        # df.to_sql(f"preprocessed_events_{timestamp}", DB_CONNECTION_STRING, if_exists="append", index=False)
         s = transform_to_sessions(df)
         s.to_sql(
             f"click_sequences_{timestamp}",
@@ -130,6 +117,3 @@ def preprocess():
 #     """,
 #     "data/events.csv",
 # )
-
-# preprocess_events()
-# sql_to_csv("SELECT * FROM preprocessed_events_1607009910", "data/events.csv")

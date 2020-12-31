@@ -25,7 +25,6 @@ class RNN(nn.Module):
         self.batch_size = batch_size
         self.num_layers = num_layers
 
-        # self.embedding = nn.Embedding(vocab_size, embedding_size)
         self.embedding = (
             nn.Embedding.from_pretrained(torch.FloatTensor(pretrained_embeddings))
             if pretrained_embeddings is not None
@@ -59,7 +58,6 @@ class RNN(nn.Module):
         output = output[torch.arange(output.shape[0]), lengths - 1]
         output = F.relu(output)
         output = self.linear(output)
-        # output = F.log_softmax(output, dim=1) # don't use if loss_function is CrossEntropyLoss
 
         return output
 

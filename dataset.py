@@ -26,15 +26,6 @@ def trainWord2Vec(series, embedding_size=100, window_size=3):
 class SequenceDataset(Dataset):
     def __init__(self, dataset_path):
         events = pd.read_csv(dataset_path)
-        # colnames = ["session_id", "date", "product_id", "category"]
-        # events = pd.read_csv(
-        #     "data/yoochoose-data/yoochoose-clicks-1000000.dat",
-        #     names=colnames,
-        #     header=None,
-        # )
-        # events["title"] = events["product_id"]
-        # events["categories"] = events["product_id"]
-        # events["customer_id"] = events["session_id"]
 
         # remove items that don't have significant impact
         events = remove_unfrequent_items(events, 5)
@@ -49,8 +40,6 @@ class SequenceDataset(Dataset):
 
         # remove one item sessions
         sessions = sessions[sessions.apply(lambda x: len(x) > 2)]
-        # remove sessions where label and last item are the same
-        # sessions = sessions[sessions.apply(lambda x: x[-1] != x[-2])]
         # remove sessions where label is in input sequence
         sessions = sessions[sessions.apply(lambda x: x[-1] not in x[:-1])]
 
@@ -58,9 +47,6 @@ class SequenceDataset(Dataset):
         self.wv_model = trainWord2Vec(
             sessions, embedding_size=EMBEDDING_SIZE, window_size=WINDOW_SIZE
         )
-        # self.idx_to_item = (
-        #     events.groupby("product_id")["product_id"].first().tolist()
-        # )
 
         # ensure that sessions consist only from items that are in word2vec dictionary
         sessions = sessions.apply(lambda x: [i for i in x if i in self.wv_model.wv])
@@ -107,7 +93,6 @@ class SequenceDataset(Dataset):
         ].index.tolist()
 
         # map item names to indexes
-        # sessions = sessions.apply(lambda x: list(map(lambda i: self.item_to_idx[i], x)))
         sessions = sessions.apply(lambda x: list(map(lambda i: self.item_to_idx[i], x)))
         self.sessions = sessions
 
@@ -132,16 +117,6 @@ class SequenceDataset(Dataset):
     def __getitem__(self, idx):
         # return self.inputs[idx], self.labels[idx], self.metadata[idx]
         return self.sessions[idx], self.sessions.index[idx]
-
-    def one_hot_encode(self, item):
-        vector = torch.zeros(self.item_count)
-        idx = self.item_to_idx[item]
-        vector[idx] = 1
-        return vector.tolist()
-
-    def one_hot_decode(self, vector):
-        idx = torch.argmax(torch.tensor(vector)).item()
-        return idx_to_item[idx]
 
     def idx_to_info(self, idx):
         return {
