@@ -18,9 +18,9 @@ Je potrebné mať Python 3 prostredie. Je možné využiť Conda prostredie, nas
 
 ## Konfigurácia
 
-Konfigurácia sa nastavuje pomocou premenných prostredia, odporúčané je využitie `.env` súboru.
+Konfigurácia sa nastavuje pomocou premenných prostredia, odporúčané je využitie `.env` súboru umiestneného v základnom priečinku.
 
-- `DB_CONNECTION_STRING`: connection string for database with raw data. For example `postgresql://name@domain:port/database`.
+- `DB_CONNECTION_STRING`: connection string na pripojenie k databáze s originálnymi dátami. Napríklad `postgresql://meno@domena:port/databaza`.
 - `BASE_PATH`: (string) cesta k základnému priečinku
 - `DATA_DIR`: (string)  cesta k priečinku s dátami
 - `DATASET`: (string) názov dátovej sady
