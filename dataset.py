@@ -115,7 +115,6 @@ class SequenceDataset(Dataset):
         return len(self.sessions)
 
     def __getitem__(self, idx):
-        # return self.inputs[idx], self.labels[idx], self.metadata[idx]
         return self.sessions[idx], self.sessions.index[idx]
 
     def idx_to_info(self, idx):
