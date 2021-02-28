@@ -11,6 +11,7 @@ from config import (
     USE_CATEGORY_SIMILARITY,
     EMBEDDING_SIZE,
     WINDOW_SIZE,
+    DETECT_PREFERENCE_CHANGE,
 )
 from preprocess import remove_unfrequent_items
 
@@ -94,7 +95,20 @@ class SequenceDataset(Dataset):
 
         # map item names to indexes
         sessions = sessions.apply(lambda x: list(map(lambda i: self.item_to_idx[i], x)))
+        self.original_sessions = sessions
+
+        # adapt sessions to user preference
+        if DETECT_PREFERENCE_CHANGE == 1:
+            sessions = sessions.apply(lambda x: [*self.split_session(x[:-1]), x[-1]])
+        elif DETECT_PREFERENCE_CHANGE == 2:
+            sessions = sessions.apply(lambda x: [*self.filter_session(x[:-1]), x[-1]])
+
         self.sessions = sessions
+        self.edited_session_ids = [
+            id
+            for idx, id in enumerate(self.sessions.index)
+            if self.sessions[idx] != self.original_sessions[idx]
+        ]
 
         # precompute most popular items
         most_popular_item_ids = (
@@ -115,7 +129,7 @@ class SequenceDataset(Dataset):
         return len(self.sessions)
 
     def __getitem__(self, idx):
-        return self.sessions[idx], self.sessions.index[idx]
+        return self.sessions[idx], self.original_sessions[idx], self.sessions.index[idx]
 
     def idx_to_info(self, idx):
         return {

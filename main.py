@@ -44,19 +44,33 @@ if MANUAL_SEED > 0:
     torch.manual_seed(MANUAL_SEED)
 
 
+def collate_fn_original(session_data):
+    # convert to input and label tensors + metadata
+    transformed_sessions = []
+    for session, original_session, session_id in session_data:
+        input = original_session[:-1]
+
+        input = torch.tensor(input, dtype=torch.long)
+        label = torch.tensor(original_session[-1])
+        metadata = (session_id, len(input))
+        transformed_sessions.append((input, label, metadata))
+
+    inputs, labels, metadata = zip(*transformed_sessions)
+
+    inputs = pad_sequence(inputs, batch_first=True, padding_value=0).to(device)
+    labels = torch.stack(labels)
+
+    return inputs, labels, metadata
+
+
 def collate_fn(session_data):
     # convert to input and label tensors + metadata
     transformed_sessions = []
-    for s, session_id in session_data:
-        input = s[:-1]
-
-        if DETECT_PREFERENCE_CHANGE == 1:
-            input = dataset.split_session(input)
-        elif DETECT_PREFERENCE_CHANGE == 2:
-            input = dataset.filter_session(input)
+    for session, original_session, session_id in session_data:
+        input = session[:-1]
 
         input = torch.tensor(input, dtype=torch.long)
-        label = torch.tensor(s[-1])
+        label = torch.tensor(session[-1])
         metadata = (session_id, len(input))
         transformed_sessions.append((input, label, metadata))
 
@@ -73,18 +87,47 @@ dataset_path = os.path.join(BASE_PATH, DATA_DIR, DATASET)
 dataset = SequenceDataset(dataset_path)
 test_size = min(int(0.2 * len(dataset)), MAX_TEST_SIZE)
 train_size = len(dataset) - test_size
-train, test = random_split(dataset, [train_size, test_size])
+trainset, testset = random_split(dataset, [train_size, test_size])
+
+testset_user_preference_mask = [
+    idx for idx, item in enumerate(testset) if item[2] in dataset.edited_session_ids
+]
+testset_user_preference = torch.utils.data.Subset(testset, testset_user_preference_mask)
+
 dataloaders = {
     "train": DataLoader(
-        train, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
+        trainset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
     ),
     "test": DataLoader(
-        test, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
+        testset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
+    ),
+    "test_preference_change_original": DataLoader(
+        testset_user_preference,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        collate_fn=collate_fn_original,
+    ),
+    "test_preference_change_edited": DataLoader(
+        testset_user_preference,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        collate_fn=collate_fn,
     ),
 }
-data_sizes = {"train": train_size, "test": test_size}
+data_sizes = {
+    "train": train_size,
+    "test": test_size,
+    "test_preference_change_original": len(testset_user_preference),
+    "test_preference_change_edited": len(testset_user_preference),
+}
 
-print(f"Train size: {train_size} sessions, test size: {test_size} sessions")
+print(
+    f"""
+        Train size: {train_size} sessions
+        Test size: {test_size} sessions
+        Test preference change size: {len(testset_user_preference)} sessions
+    """
+)
 
 
 # select device
@@ -138,7 +181,12 @@ def train(dataloaders, epochs=10, debug=False):
             mkdir_p(debug_dir_path)
             debug_f = open(debug_path, "w")
 
-        for phase in ["train", "test"]:
+        for phase in [
+            "train",
+            "test",
+            "test_preference_change_original",
+            "test_preference_change_edited",
+        ]:
             print(f"Phase: {phase}")
 
             is_train = phase == "train"
