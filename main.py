@@ -5,11 +5,9 @@ import os
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader, Subset, random_split
 from torch.nn.utils.rnn import pad_sequence
-from datetime import timedelta
 from tqdm import tqdm
 from pprint import pformat
 
-from nn import RNN
 from config import (
     BATCH_SIZE,
     BASE_PATH,
@@ -27,8 +25,9 @@ from config import (
     INPUT_DROPOUT,
     MANUAL_SEED,
 )
-from dataset import SequenceDataset
-from utils import (
+from lib.nn import RNN
+from lib.dataset import SequenceDataset
+from lib.utils import (
     print_line_separator,
     mkdir_p,
 )

@@ -1,10 +1,9 @@
 import pandas as pd
 import uuid
-from config import DB_CONNECTION_STRING
-from datetime import timedelta
 from tqdm import tqdm
 
-from utils import get_timestamp
+from config import DB_CONNECTION_STRING
+from lib.utils import get_timestamp
 
 
 def sql_to_csv(query, path):
