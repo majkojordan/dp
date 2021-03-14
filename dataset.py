@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 
 from torch.utils.data import Dataset
-from torch.nn.utils.rnn import pad_sequence
 from gensim.models import Word2Vec
 
 from config import (
@@ -33,24 +32,37 @@ class SequenceDataset(Dataset):
 
         # transform to strings so it can be used with word2vec
         events["product_id"] = events["product_id"].astype(str)
+
+        # sort by timestamp
+        events = events.sort_values(by=["timestamp"])
+
+        # create sessions
         sessions = (
-            events.groupby("session_id")["product_id"]
-            .apply(list)
-            .rename("session_events")
+            events.groupby("session_id", sort=False)
+            .agg(
+                {
+                    "product_id": lambda x: list(x),
+                    "customer_id": "first",
+                    "timestamp": "first",
+                }
+            )
+            .rename(columns={"product_id": "clicks"})
         )
 
         # remove one item sessions
-        sessions = sessions[sessions.apply(lambda x: len(x) > 2)]
+        sessions = sessions[sessions["clicks"].apply(lambda x: len(x) > 2)]
         # remove sessions where label is in input sequence
-        sessions = sessions[sessions.apply(lambda x: x[-1] not in x[:-1])]
+        sessions = sessions[sessions["clicks"].apply(lambda x: x[-1] not in x[:-1])]
 
         # train word2vec embeddings
         self.wv_model = trainWord2Vec(
-            sessions, embedding_size=EMBEDDING_SIZE, window_size=WINDOW_SIZE
+            sessions["clicks"], embedding_size=EMBEDDING_SIZE, window_size=WINDOW_SIZE
         )
 
         # ensure that sessions consist only from items that are in word2vec dictionary
-        sessions = sessions.apply(lambda x: [i for i in x if i in self.wv_model.wv])
+        sessions["clicks"] = sessions["clicks"].apply(
+            lambda x: [i for i in x if i in self.wv_model.wv]
+        )
 
         # create mappings
         self.idx_to_item = self.wv_model.wv.index2word
@@ -79,35 +91,41 @@ class SequenceDataset(Dataset):
         )
 
         # ensure that sessions consist only from items that are in word2vec dictionary
-        sessions = sessions.apply(
+        sessions["clicks"] = sessions["clicks"].apply(
             lambda x: [
                 i for i in x if self.item_to_category[i] in self.wv_category_model.wv
             ]
         )
 
         # remove one item sessions
-        sessions = sessions[sessions.apply(lambda x: len(x) > 2)]
+        sessions = sessions[sessions["clicks"].apply(lambda x: len(x) > 2)]
 
         # remember long session ids - they are used in evaluation
         self.long_session_ids = sessions[
-            sessions.apply(lambda x: len(x) > 10)
+            sessions["clicks"].apply(lambda x: len(x) > 10)
         ].index.tolist()
 
         # map item names to indexes
-        sessions = sessions.apply(lambda x: list(map(lambda i: self.item_to_idx[i], x)))
-        self.original_sessions = sessions
+        sessions["clicks"] = sessions["clicks"].apply(
+            lambda x: list(map(lambda i: self.item_to_idx[i], x))
+        )
+        sessions["original_clicks"] = sessions["clicks"]
 
         # adapt sessions to user preference
         if DETECT_PREFERENCE_CHANGE == 1:
-            sessions = sessions.apply(lambda x: [*self.split_session(x[:-1]), x[-1]])
+            sessions["clicks"] = sessions["clicks"].apply(
+                lambda x: [*self.split_session(x[:-1]), x[-1]]
+            )
         elif DETECT_PREFERENCE_CHANGE == 2:
-            sessions = sessions.apply(lambda x: [*self.filter_session(x[:-1]), x[-1]])
+            sessions["clicks"] = sessions["clicks"].apply(
+                lambda x: [*self.filter_session(x[:-1]), x[-1]]
+            )
 
         self.sessions = sessions
-        self.edited_session_ids = [
+        self.modified_session_ids = [
             id
             for idx, id in enumerate(self.sessions.index)
-            if self.sessions[idx] != self.original_sessions[idx]
+            if self.sessions["clicks"][idx] != self.sessions["original_clicks"][idx]
         ]
 
         # precompute most popular items
@@ -129,7 +147,11 @@ class SequenceDataset(Dataset):
         return len(self.sessions)
 
     def __getitem__(self, idx):
-        return self.sessions[idx], self.original_sessions[idx], self.sessions.index[idx]
+        return (
+            self.sessions["clicks"][idx],
+            self.sessions["clicks"][idx],
+            self.sessions.index[idx],
+        )
 
     def idx_to_info(self, idx):
         return {

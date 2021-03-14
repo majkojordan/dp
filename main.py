@@ -3,7 +3,7 @@ import torch
 import os
 
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader, Subset, random_split
 from torch.nn.utils.rnn import pad_sequence
 from datetime import timedelta
 from tqdm import tqdm
@@ -75,10 +75,11 @@ test_size = min(int(0.2 * len(dataset)), MAX_TEST_SIZE)
 train_size = len(dataset) - test_size
 trainset, testset = random_split(dataset, [train_size, test_size])
 
+# item[2] is item index
 testset_user_preference_mask = [
-    idx for idx, item in enumerate(testset) if item[2] in dataset.edited_session_ids
+    idx for idx, item in enumerate(testset) if item[2] in dataset.modified_session_ids
 ]
-testset_user_preference = torch.utils.data.Subset(testset, testset_user_preference_mask)
+testset_user_preference = Subset(testset, testset_user_preference_mask)
 
 dataloaders = {
     "train": DataLoader(
@@ -93,7 +94,7 @@ dataloaders = {
         shuffle=False,
         collate_fn=collate_fn_original,
     ),
-    "test_preference_change_edited": DataLoader(
+    "test_preference_change_modified": DataLoader(
         testset_user_preference,
         batch_size=BATCH_SIZE,
         shuffle=False,
@@ -104,7 +105,7 @@ data_sizes = {
     "train": train_size,
     "test": test_size,
     "test_preference_change_original": len(testset_user_preference),
-    "test_preference_change_edited": len(testset_user_preference),
+    "test_preference_change_modified": len(testset_user_preference),
 }
 
 print(
@@ -171,7 +172,7 @@ def train(dataloaders, epochs=10, debug=False):
             "train",
             "test",
             "test_preference_change_original",
-            "test_preference_change_edited",
+            "test_preference_change_modified",
         ]:
             print(f"Phase: {phase}")
 
@@ -185,7 +186,6 @@ def train(dataloaders, epochs=10, debug=False):
             with torch.set_grad_enabled(is_train):
                 hits = 0
                 hits_10 = 0
-                long_hits = 0
                 long_hits_10 = 0
                 long_session_count = 0
                 running_loss = 0
