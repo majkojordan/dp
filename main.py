@@ -3,7 +3,6 @@ import torch
 import os
 
 from torch.nn import CrossEntropyLoss
-from torch.nn.functional import one_hot
 from torch.utils.data import DataLoader, random_split
 from torch.nn.utils.rnn import pad_sequence
 from datetime import timedelta
@@ -14,7 +13,6 @@ from nn import RNN
 from config import (
     BATCH_SIZE,
     BASE_PATH,
-    DB_CONNECTION_STRING,
     DEBUG,
     DEBUG_FOLDER,
     DATA_DIR,
@@ -24,16 +22,13 @@ from config import (
     EMBEDDING_SIZE,
     LEARNING_RATE,
     NUM_LAYERS,
-    USE_CATEGORY_SIMILARITY,
     MAX_TEST_SIZE,
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
     MANUAL_SEED,
-    DETECT_PREFERENCE_CHANGE,
 )
 from dataset import SequenceDataset
 from utils import (
-    get_timestamp,
     print_line_separator,
     mkdir_p,
 )
@@ -44,29 +39,12 @@ if MANUAL_SEED > 0:
     torch.manual_seed(MANUAL_SEED)
 
 
-def collate_fn_original(session_data):
+def collate_fn(session_data, use_original_sessions=False):
     # convert to input and label tensors + metadata
     transformed_sessions = []
-    for session, original_session, session_id in session_data:
-        input = original_session[:-1]
+    for modified_session, original_session, session_id in session_data:
+        session = original_session if use_original_sessions else modified_session
 
-        input = torch.tensor(input, dtype=torch.long)
-        label = torch.tensor(original_session[-1])
-        metadata = (session_id, len(input))
-        transformed_sessions.append((input, label, metadata))
-
-    inputs, labels, metadata = zip(*transformed_sessions)
-
-    inputs = pad_sequence(inputs, batch_first=True, padding_value=0).to(device)
-    labels = torch.stack(labels)
-
-    return inputs, labels, metadata
-
-
-def collate_fn(session_data):
-    # convert to input and label tensors + metadata
-    transformed_sessions = []
-    for session, original_session, session_id in session_data:
         input = session[:-1]
 
         input = torch.tensor(input, dtype=torch.long)
@@ -80,6 +58,14 @@ def collate_fn(session_data):
     labels = torch.stack(labels)
 
     return inputs, labels, metadata
+
+
+def collate_fn_original(session_data):
+    return collate_fn(session_data, True)
+
+
+def collate_fn_modified(session_data):
+    return collate_fn(session_data, False)
 
 
 # load data
@@ -96,10 +82,10 @@ testset_user_preference = torch.utils.data.Subset(testset, testset_user_preferen
 
 dataloaders = {
     "train": DataLoader(
-        trainset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn
+        trainset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn_modified
     ),
     "test": DataLoader(
-        testset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn
+        testset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn_modified
     ),
     "test_preference_change_original": DataLoader(
         testset_user_preference,
@@ -111,7 +97,7 @@ dataloaders = {
         testset_user_preference,
         batch_size=BATCH_SIZE,
         shuffle=False,
-        collate_fn=collate_fn,
+        collate_fn=collate_fn_modified,
     ),
 }
 data_sizes = {
