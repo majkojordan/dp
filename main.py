@@ -1,10 +1,8 @@
-import pandas as pd
 import torch
 import os
 
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader, Subset
-from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 from pprint import pformat
 
@@ -31,41 +29,17 @@ from lib.utils import (
     print_line_separator,
     mkdir_p,
 )
+from lib.collator import Collator
 
 
 # set manual seed to reproduce the results
 if MANUAL_SEED > 0:
     torch.manual_seed(MANUAL_SEED)
 
-
-def collate_fn(session_data, use_original_sessions=False):
-    # convert to input and label tensors + metadata
-    transformed_sessions = []
-    for modified_session, original_session, session_id in session_data:
-        session = original_session if use_original_sessions else modified_session
-
-        input = session[:-1]
-
-        input = torch.tensor(input, dtype=torch.long)
-        label = torch.tensor(session[-1])
-        metadata = (session_id, len(input))
-        transformed_sessions.append((input, label, metadata))
-
-    inputs, labels, metadata = zip(*transformed_sessions)
-
-    inputs = pad_sequence(inputs, batch_first=True, padding_value=0).to(device)
-    labels = torch.stack(labels)
-
-    return inputs, labels, metadata
-
-
-def collate_fn_original(session_data):
-    return collate_fn(session_data, True)
-
-
-def collate_fn_modified(session_data):
-    return collate_fn(session_data, False)
-
+# select device
+device_name = "cuda" if torch.cuda.is_available() else "cpu"
+device = torch.device(device_name)
+print(f"Running on {device_name}")
 
 # load data
 dataset_path = os.path.join(BASE_PATH, DATA_DIR, DATASET)
@@ -76,51 +50,51 @@ trainset = Subset(dataset, range(train_size))
 testset = Subset(dataset, range(train_size, train_size + test_size))
 
 # item[2] is item index
-testset_user_preference_mask = [
+testset_preference_change_mask = [
     idx for idx, item in enumerate(testset) if item[2] in dataset.modified_session_ids
 ]
-testset_user_preference = Subset(testset, testset_user_preference_mask)
+testset_preference_change = Subset(testset, testset_preference_change_mask)
 
 dataloaders = {
     "train": DataLoader(
-        trainset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn_modified
+        trainset,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        collate_fn=Collator(device, False),
     ),
     "test": DataLoader(
-        testset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn_modified
+        testset,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        collate_fn=Collator(device, False),
     ),
     "test_preference_change_original": DataLoader(
-        testset_user_preference,
+        testset_preference_change,
         batch_size=BATCH_SIZE,
         shuffle=False,
-        collate_fn=collate_fn_original,
+        collate_fn=Collator(device, True),
     ),
     "test_preference_change_modified": DataLoader(
-        testset_user_preference,
+        testset_preference_change,
         batch_size=BATCH_SIZE,
         shuffle=False,
-        collate_fn=collate_fn_modified,
+        collate_fn=Collator(device, False),
     ),
 }
 data_sizes = {
     "train": train_size,
     "test": test_size,
-    "test_preference_change_original": len(testset_user_preference),
-    "test_preference_change_modified": len(testset_user_preference),
+    "test_preference_change_original": len(testset_preference_change),
+    "test_preference_change_modified": len(testset_preference_change),
 }
 
 print(
     f"""
         Train size: {train_size} sessions
         Test size: {test_size} sessions
-        Test preference change size: {len(testset_user_preference)} sessions
+        Test preference change size: {len(testset_preference_change)} sessions
     """
 )
-
-
-# select device
-device_name = "cuda" if torch.cuda.is_available() else "cpu"
-device = torch.device(device_name)
-print(f"Running on {device_name}")
 
 # load embeddings
 pretrained_embeddings = dataset.get_item_embeddings()
