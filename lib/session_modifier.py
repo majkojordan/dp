@@ -3,7 +3,7 @@ import numpy as np
 from config import SIMILARITY_THRESHOLD, USE_CATEGORY_SIMILARITY
 
 
-class PreferenceChange:
+class SessionModifier:
     def __init__(self, dataset):
         self.dataset = dataset
 
@@ -53,3 +53,7 @@ class PreferenceChange:
             ]
 
         return filtered_session
+
+    def add_long_term_preference(self, session):
+        # TODO
+        return session

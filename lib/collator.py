@@ -3,9 +3,17 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 class Collator(object):
-    def __init__(self, device=torch.device("cpu"), use_original_sessions=False):
+    def __init__(
+        self,
+        device=torch.device("cpu"),
+        use_original_sessions=False,
+        use_long_term_preference=False,
+        session_modifier=None,
+    ):
         self.use_original_sessions = use_original_sessions
         self.device = device
+        self.use_long_term_preference = use_long_term_preference
+        self.session_modifier = session_modifier
 
     def __call__(self, session_data):
         transformed_sessions = []
@@ -13,6 +21,9 @@ class Collator(object):
             session = (
                 original_session if self.use_original_sessions else modified_session
             )
+
+            if self.use_long_term_preference:
+                session = self.session_modifier.add_long_term_preference(session)
 
             input = session[:-1]
 

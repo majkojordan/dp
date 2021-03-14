@@ -1,3 +1,4 @@
+from lib.session_modifier import SessionModifier
 import torch
 import os
 
@@ -13,6 +14,7 @@ from config import (
     DEBUG_FOLDER,
     DATA_DIR,
     DATASET,
+    DETECT_PREFERENCE_CHANGE,
     EPOCHS,
     HIDDEN_SIZE,
     EMBEDDING_SIZE,
@@ -44,6 +46,11 @@ print(f"Running on {device_name}")
 # load data
 dataset_path = os.path.join(BASE_PATH, DATA_DIR, DATASET)
 dataset = SequenceDataset(dataset_path)
+
+# trigger user preference adaptation
+session_modifier = SessionModifier(dataset)
+dataset.adapt_user_preference(DETECT_PREFERENCE_CHANGE, session_modifier)
+
 test_size = min(int(0.2 * len(dataset)), MAX_TEST_SIZE)
 train_size = len(dataset) - test_size
 trainset = Subset(dataset, range(train_size))
@@ -66,7 +73,12 @@ dataloaders = {
         testset,
         batch_size=BATCH_SIZE,
         shuffle=False,
-        collate_fn=Collator(device, False),
+        collate_fn=Collator(
+            device,
+            use_original_sessions=False,
+            use_long_term_preference=True,
+            session_modifier=session_modifier,
+        ),
     ),
     "test_preference_change_original": DataLoader(
         testset_preference_change,

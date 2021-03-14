@@ -10,7 +10,7 @@ from config import (
     DETECT_PREFERENCE_CHANGE,
 )
 from preprocess import remove_unfrequent_items
-from lib.preference_change import PreferenceChange
+from lib.session_modifier import SessionModifier
 
 
 def trainWord2Vec(series, embedding_size=100, window_size=3):
@@ -109,23 +109,7 @@ class SequenceDataset(Dataset):
         )
         sessions["original_clicks"] = sessions["clicks"]
 
-        # adapt sessions to user preference
-        preference_change = PreferenceChange(self)
-        if DETECT_PREFERENCE_CHANGE == 1:
-            sessions["clicks"] = sessions["clicks"].apply(
-                lambda x: [*preference_change.split_session(x[:-1]), x[-1]]
-            )
-        elif DETECT_PREFERENCE_CHANGE == 2:
-            sessions["clicks"] = sessions["clicks"].apply(
-                lambda x: [*preference_change.filter_session(x[:-1]), x[-1]]
-            )
-
         self.sessions = sessions
-        self.modified_session_ids = [
-            id
-            for idx, id in enumerate(self.sessions.index)
-            if self.sessions["clicks"][idx] != self.sessions["original_clicks"][idx]
-        ]
 
         # precompute most popular items
         most_popular_item_ids = (
@@ -151,6 +135,26 @@ class SequenceDataset(Dataset):
             self.sessions["clicks"][idx],
             self.sessions.index[idx],
         )
+
+    def adapt_user_preference(self, method, session_modifier):
+        # adapt sessions to user preference
+        sessions = self.sessions
+        if method == 1:
+            sessions["clicks"] = sessions["clicks"].apply(
+                lambda x: [*session_modifier.split_session(x[:-1]), x[-1]]
+            )
+        elif method == 2:
+            sessions["clicks"] = sessions["clicks"].apply(
+                lambda x: [*session_modifier.filter_session(x[:-1]), x[-1]]
+            )
+
+        self.modified_session_ids = [
+            id
+            for idx, id in enumerate(sessions.index)
+            if sessions["clicks"][idx] != sessions["original_clicks"][idx]
+        ]
+
+        self.sessions = sessions
 
     def idx_to_info(self, idx):
         return {
