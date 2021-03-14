@@ -3,7 +3,7 @@ import torch
 import os
 
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader, Subset, random_split
+from torch.utils.data import DataLoader, Subset
 from torch.nn.utils.rnn import pad_sequence
 from tqdm import tqdm
 from pprint import pformat
@@ -72,7 +72,8 @@ dataset_path = os.path.join(BASE_PATH, DATA_DIR, DATASET)
 dataset = SequenceDataset(dataset_path)
 test_size = min(int(0.2 * len(dataset)), MAX_TEST_SIZE)
 train_size = len(dataset) - test_size
-trainset, testset = random_split(dataset, [train_size, test_size])
+trainset = Subset(dataset, range(train_size))
+testset = Subset(dataset, range(train_size, train_size + test_size))
 
 # item[2] is item index
 testset_user_preference_mask = [
