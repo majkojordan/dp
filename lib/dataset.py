@@ -4,13 +4,9 @@ import numpy as np
 from torch.utils.data import Dataset
 from gensim.models import Word2Vec
 
-from config import (
-    EMBEDDING_SIZE,
-    WINDOW_SIZE,
-    DETECT_PREFERENCE_CHANGE,
-)
+import lib.constants as constants
+from config import EMBEDDING_SIZE, WINDOW_SIZE
 from preprocess import remove_unfrequent_items
-from lib.session_modifier import SessionModifier
 
 
 def trainWord2Vec(series, embedding_size=100, window_size=3):
@@ -132,18 +128,18 @@ class SequenceDataset(Dataset):
     def __getitem__(self, idx):
         return (
             self.sessions["clicks"][idx],
-            self.sessions["clicks"][idx],
+            self.sessions["original_clicks"][idx],
             self.sessions.index[idx],
         )
 
     def adapt_user_preference(self, method, session_modifier):
         # adapt sessions to user preference
         sessions = self.sessions
-        if method == 1:
+        if method == constants.SPLIT_SESSIONS:
             sessions["clicks"] = sessions["clicks"].apply(
                 lambda x: [*session_modifier.split_session(x[:-1]), x[-1]]
             )
-        elif method == 2:
+        elif method == constants.FILTER_SESSIONS:
             sessions["clicks"] = sessions["clicks"].apply(
                 lambda x: [*session_modifier.filter_session(x[:-1]), x[-1]]
             )

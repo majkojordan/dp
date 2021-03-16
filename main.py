@@ -1,4 +1,3 @@
-from lib.session_modifier import SessionModifier
 import torch
 import os
 
@@ -27,6 +26,7 @@ from config import (
 )
 from lib.nn import RNN
 from lib.dataset import SequenceDataset
+from lib.session_modifier import SessionModifier
 from lib.utils import (
     print_line_separator,
     mkdir_p,
@@ -251,6 +251,9 @@ def train(dataloaders, epochs=10, debug=False):
                     hits += torch.sum(predicted_indexes == labels).item()
                     running_loss += loss.item() * curr_batch_size
 
+            if data_sizes[phase] == 0:
+                print("No sessions")
+                continue
             avg_loss = running_loss / data_sizes[phase]
             acc = hits / data_sizes[phase] * 100
             if is_train:
