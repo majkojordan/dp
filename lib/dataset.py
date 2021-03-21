@@ -4,7 +4,7 @@ import numpy as np
 from torch.utils.data import Dataset
 from gensim.models import Word2Vec
 
-import lib.constants as constants
+from lib.constants import SPLIT_SESSIONS, FILTER_SESSIONS
 from config import EMBEDDING_SIZE, WINDOW_SIZE
 from preprocess import remove_unfrequent_items
 
@@ -135,11 +135,11 @@ class SequenceDataset(Dataset):
     def adapt_user_preference(self, method, session_modifier):
         # adapt sessions to user preference
         sessions = self.sessions
-        if method == constants.SPLIT_SESSIONS:
+        if method == SPLIT_SESSIONS:
             sessions["clicks"] = sessions["clicks"].apply(
                 lambda x: [*session_modifier.split_session(x[:-1]), x[-1]]
             )
-        elif method == constants.FILTER_SESSIONS:
+        elif method == FILTER_SESSIONS:
             sessions["clicks"] = sessions["clicks"].apply(
                 lambda x: [*session_modifier.filter_session(x[:-1]), x[-1]]
             )

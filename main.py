@@ -2,7 +2,7 @@ import torch
 import os
 
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Subset, random_split
 from tqdm import tqdm
 from pprint import pformat
 
@@ -20,9 +20,11 @@ from config import (
     LEARNING_RATE,
     NUM_LAYERS,
     MAX_TEST_SIZE,
+    MAX_VALIDATION_SIZE,
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
     MANUAL_SEED,
+    USE_VALIDATION,
 )
 from lib.nn import RNN
 from lib.dataset import SequenceDataset
@@ -52,59 +54,81 @@ session_modifier = SessionModifier(dataset)
 dataset.adapt_user_preference(DETECT_PREFERENCE_CHANGE, session_modifier)
 
 test_size = min(int(0.2 * len(dataset)), MAX_TEST_SIZE)
-train_size = len(dataset) - test_size
-trainset = Subset(dataset, range(train_size))
-testset = Subset(dataset, range(train_size, train_size + test_size))
+validation_size = min(int(0.2 * len(dataset)), MAX_VALIDATION_SIZE)
+train_size = len(dataset) - test_size - validation_size
+
+train_set, test_set, validation_set = random_split(
+    dataset,
+    lengths=[train_size, test_size, validation_size],
+    generator=torch.Generator().manual_seed(MANUAL_SEED),
+)
 
 # item[2] is item index
-testset_preference_change_mask = [
-    idx for idx, item in enumerate(testset) if item[2] in dataset.modified_session_ids
+test_set_preference_change_mask = [
+    idx for idx, item in enumerate(test_set) if item[2] in dataset.modified_session_ids
 ]
-testset_preference_change = Subset(testset, testset_preference_change_mask)
+test_set_preference_change = Subset(test_set, test_set_preference_change_mask)
+validation_set_preference_change_mask = [
+    idx
+    for idx, item in enumerate(validation_set)
+    if item[2] in dataset.modified_session_ids
+]
+validation_set_preference_change = Subset(
+    validation_set, validation_set_preference_change_mask
+)
+
 
 dataloaders = {
     "train": DataLoader(
-        trainset,
+        train_set,
         batch_size=BATCH_SIZE,
         shuffle=True,
         collate_fn=Collator(device, False),
     ),
     "test": DataLoader(
-        testset,
+        test_set,
         batch_size=BATCH_SIZE,
-        shuffle=False,
-        collate_fn=Collator(
-            device,
-            use_original_sessions=False,
-            use_long_term_preference=True,
-            session_modifier=session_modifier,
-        ),
+        collate_fn=Collator(device, False),
     ),
     "test_preference_change_original": DataLoader(
-        testset_preference_change,
+        test_set_preference_change,
         batch_size=BATCH_SIZE,
-        shuffle=False,
         collate_fn=Collator(device, True),
     ),
     "test_preference_change_modified": DataLoader(
-        testset_preference_change,
+        test_set_preference_change,
         batch_size=BATCH_SIZE,
-        shuffle=False,
+        collate_fn=Collator(device, False),
+    ),
+    "validation": DataLoader(
+        validation_set,
+        batch_size=BATCH_SIZE,
+        collate_fn=Collator(device, False),
+    ),
+    "validation_preference_change_original": DataLoader(
+        validation_set_preference_change,
+        batch_size=BATCH_SIZE,
+        collate_fn=Collator(device, True),
+    ),
+    "validation_preference_change_modified": DataLoader(
+        validation_set_preference_change,
+        batch_size=BATCH_SIZE,
         collate_fn=Collator(device, False),
     ),
 }
-data_sizes = {
-    "train": train_size,
-    "test": test_size,
-    "test_preference_change_original": len(testset_preference_change),
-    "test_preference_change_modified": len(testset_preference_change),
-}
+
+phases = dataloaders.keys()
+if not USE_VALIDATION:
+    phases = list(filter(lambda x: not x.startswith("validation"), phases))
+    # phases = [k for k in dataloaders.keys() if not k.startswith('validation')]
 
 print(
     f"""
         Train size: {train_size} sessions
         Test size: {test_size} sessions
-        Test preference change size: {len(testset_preference_change)} sessions
+        Test preference change size: {len(test_set_preference_change)} sessions
+        Validation size: {validation_size} sessions
+        Validation preference change size: {len(validation_set_preference_change)} sessions
     """
 )
 
@@ -135,8 +159,8 @@ popular_hits_10 = 0
 for _, labels, _ in tqdm(dataloaders["test"]):
     popular_hits = sum([l == dataset.most_popular_items[0] for l in labels.tolist()])
     popular_hits_10 += sum([l in dataset.most_popular_items for l in labels.tolist()])
-popular_acc = popular_hits / data_sizes["test"] * 100
-popular_acc_10 = popular_hits_10 / data_sizes["test"] * 100
+popular_acc = popular_hits / test_size * 100
+popular_acc_10 = popular_hits_10 / test_size * 100
 print(f"Baseline - acc@1: {popular_acc:.4f}, acc@10: {popular_acc_10:.4f}\n")
 print_line_separator()
 
@@ -154,12 +178,7 @@ def train(dataloaders, epochs=10, debug=False):
             mkdir_p(debug_dir_path)
             debug_f = open(debug_path, "w")
 
-        for phase in [
-            "train",
-            "test",
-            "test_preference_change_original",
-            "test_preference_change_modified",
-        ]:
+        for phase in phases:
             print(f"Phase: {phase}")
 
             is_train = phase == "train"
@@ -176,9 +195,7 @@ def train(dataloaders, epochs=10, debug=False):
                 long_session_count = 0
                 running_loss = 0
 
-                for i, (inputs, labels, metadata) in enumerate(
-                    tqdm(dataloaders[phase])
-                ):
+                for inputs, labels, metadata in tqdm(dataloaders[phase]):
                     inputs = inputs.to(device, dtype=torch.float)
                     labels = labels.to(device)
                     session_ids, lengths = zip(*metadata)
@@ -251,15 +268,16 @@ def train(dataloaders, epochs=10, debug=False):
                     hits += torch.sum(predicted_indexes == labels).item()
                     running_loss += loss.item() * curr_batch_size
 
-            if data_sizes[phase] == 0:
+            phase_size = len(dataloaders[phase].dataset)
+            if phase_size == 0:
                 print("No sessions")
                 continue
-            avg_loss = running_loss / data_sizes[phase]
-            acc = hits / data_sizes[phase] * 100
+            avg_loss = running_loss / phase_size
+            acc = hits / phase_size * 100
             if is_train:
                 print(f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}\n")
             else:
-                acc_10 = hits_10 / data_sizes[phase] * 100
+                acc_10 = hits_10 / phase_size * 100
                 long_acc_10 = (
                     long_hits_10 / long_session_count * 100
                     if long_session_count > 0
