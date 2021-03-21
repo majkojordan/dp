@@ -24,7 +24,7 @@ from config import (
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
     MANUAL_SEED,
-    USE_VALIDATION,
+    EVALUATE_MODEL,
 )
 from lib.nn import RNN
 from lib.dataset import SequenceDataset
@@ -80,21 +80,6 @@ dataloaders = {
         shuffle=True,
         collate_fn=Collator(device, False),
     ),
-    "test": DataLoader(
-        test_set,
-        batch_size=BATCH_SIZE,
-        collate_fn=Collator(device, False),
-    ),
-    "test_preference_change_original": DataLoader(
-        test_set_preference_change,
-        batch_size=BATCH_SIZE,
-        collate_fn=Collator(device, True),
-    ),
-    "test_preference_change_modified": DataLoader(
-        test_set_preference_change,
-        batch_size=BATCH_SIZE,
-        collate_fn=Collator(device, False),
-    ),
     "validation": DataLoader(
         validation_set,
         batch_size=BATCH_SIZE,
@@ -110,20 +95,34 @@ dataloaders = {
         batch_size=BATCH_SIZE,
         collate_fn=Collator(device, False),
     ),
+    "test": DataLoader(
+        test_set,
+        batch_size=BATCH_SIZE,
+        collate_fn=Collator(device, False),
+    ),
+    "test_preference_change_original": DataLoader(
+        test_set_preference_change,
+        batch_size=BATCH_SIZE,
+        collate_fn=Collator(device, True),
+    ),
+    "test_preference_change_modified": DataLoader(
+        test_set_preference_change,
+        batch_size=BATCH_SIZE,
+        collate_fn=Collator(device, False),
+    ),
 }
 
 phases = dataloaders.keys()
-if not USE_VALIDATION:
-    phases = list(filter(lambda x: not x.startswith("validation"), phases))
-    # phases = [k for k in dataloaders.keys() if not k.startswith('validation')]
+if not EVALUATE_MODEL:
+    phases = list(filter(lambda x: not x.startswith("test"), phases))
 
 print(
     f"""
         Train size: {train_size} sessions
-        Test size: {test_size} sessions
-        Test preference change size: {len(test_set_preference_change)} sessions
         Validation size: {validation_size} sessions
         Validation preference change size: {len(validation_set_preference_change)} sessions
+        Test size: {test_size} sessions
+        Test preference change size: {len(test_set_preference_change)} sessions
     """
 )
 
