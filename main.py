@@ -35,11 +35,6 @@ from lib.utils import (
 )
 from lib.collator import Collator
 
-
-# set manual seed to reproduce the results
-if MANUAL_SEED > 0:
-    torch.manual_seed(MANUAL_SEED)
-
 # select device
 device_name = "cuda" if torch.cuda.is_available() else "cpu"
 device = torch.device(device_name)
