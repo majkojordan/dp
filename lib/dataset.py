@@ -1,12 +1,11 @@
 import pandas as pd
 import numpy as np
-
 from torch.utils.data import Dataset
 from gensim.models import Word2Vec
 
-from lib.constants import SPLIT_SESSIONS, FILTER_SESSIONS
 from config import EMBEDDING_SIZE, WINDOW_SIZE
 from preprocess import remove_unfrequent_items
+from lib.constants import SPLIT_SESSIONS, FILTER_SESSIONS
 
 
 def trainWord2Vec(series, embedding_size=100, window_size=3):

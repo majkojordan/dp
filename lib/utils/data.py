@@ -1,9 +1,9 @@
 import torch
-from torch.utils import data
+from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Subset, random_split
+
 from config import BATCH_SIZE, MANUAL_SEED, MAX_TEST_SIZE, MAX_VALIDATION_SIZE
 from lib.collator import Collator
-from torch.utils.data.dataloader import DataLoader
 
 
 def create_data_samples(dataset):

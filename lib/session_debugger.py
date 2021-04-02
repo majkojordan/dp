@@ -1,10 +1,9 @@
 import os
 import atexit
 from pprint import pformat
-import numpy as np
 
-from lib.utils.common import mkdir_p
 from config import BASE_PATH, DEBUG_FOLDER
+from lib.utils.common import mkdir_p
 
 
 class SessionDebugger:

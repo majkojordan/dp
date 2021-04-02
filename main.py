@@ -1,10 +1,6 @@
-from lib.utils.data import create_data_samples, create_dataloaders
-from lib.session_debugger import SessionDebugger
-import torch
 import os
-
+import torch
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader, Subset, random_split
 from tqdm import tqdm
 
 from config import (
@@ -22,11 +18,12 @@ from config import (
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
 )
+from lib.utils.data import create_data_samples, create_dataloaders
+from lib.session_debugger import SessionDebugger
 from lib.nn import RNN
 from lib.dataset import SequenceDataset
 from lib.session_modifier import SessionModifier
 from lib.utils.common import print_line_separator
-from lib.collator import Collator
 
 # select device
 device_name = "cuda" if torch.cuda.is_available() else "cpu"
