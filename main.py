@@ -1,3 +1,4 @@
+from lib.utils.data import create_data_samples, create_dataloaders
 from lib.session_debugger import SessionDebugger
 import torch
 import os
@@ -18,12 +19,8 @@ from config import (
     EMBEDDING_SIZE,
     LEARNING_RATE,
     NUM_LAYERS,
-    MAX_TEST_SIZE,
-    MAX_VALIDATION_SIZE,
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
-    MANUAL_SEED,
-    EVALUATE_MODEL,
 )
 from lib.nn import RNN
 from lib.dataset import SequenceDataset
@@ -44,83 +41,17 @@ dataset = SequenceDataset(dataset_path)
 session_modifier = SessionModifier(dataset)
 dataset.adapt_user_preference(DETECT_PREFERENCE_CHANGE, session_modifier)
 
-test_size = min(int(0.2 * len(dataset)), MAX_TEST_SIZE)
-validation_size = min(int(0.2 * len(dataset)), MAX_VALIDATION_SIZE)
-train_size = len(dataset) - test_size - validation_size
-
-train_set, test_set, validation_set = random_split(
-    dataset,
-    lengths=[train_size, test_size, validation_size],
-    generator=torch.Generator().manual_seed(MANUAL_SEED),
+train_set, test_set, validation_set = create_data_samples(dataset)
+dataloaders = create_dataloaders(
+    dataset=dataset,
+    train_set=train_set,
+    test_set=test_set,
+    validation_set=test_set,
+    device=device,
 )
 
-# item[2] is item index
-test_set_preference_change_mask = [
-    idx for idx, item in enumerate(test_set) if item[2] in dataset.modified_session_ids
-]
-test_set_preference_change = Subset(test_set, test_set_preference_change_mask)
-validation_set_preference_change_mask = [
-    idx
-    for idx, item in enumerate(validation_set)
-    if item[2] in dataset.modified_session_ids
-]
-validation_set_preference_change = Subset(
-    validation_set, validation_set_preference_change_mask
-)
-
-
-dataloaders = {
-    "train": DataLoader(
-        train_set,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        collate_fn=Collator(device, False),
-    ),
-    "validation": DataLoader(
-        validation_set,
-        batch_size=BATCH_SIZE,
-        collate_fn=Collator(device, False),
-    ),
-    "validation_preference_change_original": DataLoader(
-        validation_set_preference_change,
-        batch_size=BATCH_SIZE,
-        collate_fn=Collator(device, True),
-    ),
-    "validation_preference_change_modified": DataLoader(
-        validation_set_preference_change,
-        batch_size=BATCH_SIZE,
-        collate_fn=Collator(device, False),
-    ),
-    "test": DataLoader(
-        test_set,
-        batch_size=BATCH_SIZE,
-        collate_fn=Collator(device, False),
-    ),
-    "test_preference_change_original": DataLoader(
-        test_set_preference_change,
-        batch_size=BATCH_SIZE,
-        collate_fn=Collator(device, True),
-    ),
-    "test_preference_change_modified": DataLoader(
-        test_set_preference_change,
-        batch_size=BATCH_SIZE,
-        collate_fn=Collator(device, False),
-    ),
-}
-
-phases = dataloaders.keys()
-if not EVALUATE_MODEL:
-    phases = list(filter(lambda x: not x.startswith("test"), phases))
-
-print(
-    f"""
-        Train size: {train_size} sessions
-        Validation size: {validation_size} sessions
-        Validation preference change size: {len(validation_set_preference_change)} sessions
-        Test size: {test_size} sessions
-        Test preference change size: {len(test_set_preference_change)} sessions
-    """
-)
+for phase, dataloader in dataloaders.items():
+    print(f"{phase} size: {len(dataloader.dataset)} sessions")
 
 # load embeddings
 pretrained_embeddings = dataset.get_item_embeddings()
@@ -146,11 +77,12 @@ print_line_separator()
 print("Calculating baseline scores - most popular")
 popular_acc = 0
 popular_hits_10 = 0
-for _, labels, _ in tqdm(dataloaders["test"]):
+for _, labels, _ in tqdm(dataloaders["validation"]):
     popular_hits = sum([l == dataset.most_popular_items[0] for l in labels.tolist()])
     popular_hits_10 += sum([l in dataset.most_popular_items for l in labels.tolist()])
-popular_acc = popular_hits / test_size * 100
-popular_acc_10 = popular_hits_10 / test_size * 100
+validation_size = len(dataloaders["validation"].dataset)
+popular_acc = popular_hits / validation_size * 100
+popular_acc_10 = popular_hits_10 / validation_size * 100
 print(f"Baseline - acc@1: {popular_acc:.4f}, acc@10: {popular_acc_10:.4f}\n")
 print_line_separator()
 
@@ -165,7 +97,7 @@ def train(dataloaders, epochs=10, debug=False):
         if debug:
             debugger = SessionDebugger(epoch)
 
-        for phase in phases:
+        for phase, dataloader in dataloaders.items():
             print(f"Phase: {phase}")
 
             is_train = phase == "train"
@@ -182,7 +114,7 @@ def train(dataloaders, epochs=10, debug=False):
                 long_session_count = 0
                 running_loss = 0
 
-                for inputs, labels, metadata in tqdm(dataloaders[phase]):
+                for inputs, labels, metadata in tqdm(dataloader):
                     inputs = inputs.to(device, dtype=torch.float)
                     labels = labels.to(device)
                     session_ids, lengths = zip(*metadata)
@@ -239,7 +171,7 @@ def train(dataloaders, epochs=10, debug=False):
                     hits += torch.sum(predicted_indexes == labels).item()
                     running_loss += loss.item() * curr_batch_size
 
-            phase_size = len(dataloaders[phase].dataset)
+            phase_size = len(dataloader.dataset)
             if phase_size == 0:
                 print("No sessions")
                 continue
