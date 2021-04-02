@@ -3,7 +3,7 @@ import uuid
 from tqdm import tqdm
 
 from config import DB_CONNECTION_STRING
-from lib.utils import get_timestamp
+from lib.utils.common import get_timestamp
 
 
 def sql_to_csv(query, path):

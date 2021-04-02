@@ -1,16 +1,15 @@
+from lib.session_debugger import SessionDebugger
 import torch
 import os
 
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader, Subset, random_split
 from tqdm import tqdm
-from pprint import pformat
 
 from config import (
     BATCH_SIZE,
     BASE_PATH,
     DEBUG,
-    DEBUG_FOLDER,
     DATA_DIR,
     DATASET,
     DETECT_PREFERENCE_CHANGE,
@@ -29,10 +28,7 @@ from config import (
 from lib.nn import RNN
 from lib.dataset import SequenceDataset
 from lib.session_modifier import SessionModifier
-from lib.utils import (
-    print_line_separator,
-    mkdir_p,
-)
+from lib.utils.common import print_line_separator
 from lib.collator import Collator
 
 # select device
@@ -167,10 +163,7 @@ def train(dataloaders, epochs=10, debug=False):
         print(f"Epoch: {epoch} / {epochs}\n")
 
         if debug:
-            debug_path = os.path.join(BASE_PATH, DEBUG_FOLDER, f"epoch_{epoch}.txt")
-            debug_dir_path = os.path.dirname(debug_path)
-            mkdir_p(debug_dir_path)
-            debug_f = open(debug_path, "w")
+            debugger = SessionDebugger(epoch)
 
         for phase in phases:
             print(f"Phase: {phase}")
@@ -217,27 +210,11 @@ def train(dataloaders, epochs=10, debug=False):
 
                         # show the predictions
                         if debug:
-                            for session_id, predictions in zip(
-                                session_ids, predicted_indexes_10
-                            ):
-                                session = [
-                                    dataset.idx_to_info(i)
-                                    for i in dataset.sessions.loc[session_id]
-                                ]
-                                predictions = [
-                                    dataset.idx_to_info(i) for i in predictions.tolist()
-                                ]
-
-                                debug_f.write(
-                                    (
-                                        f"INPUT:\n{pformat(session[:-1], width=160)}\n\n"
-                                        f"LABEL:\n{pformat(session[-1], width=160)}\n\n"
-                                        f"PREDICTIONS:\n{pformat(predictions, width=160)}\n\n"
-                                        f"long: {session_id in dataset.long_session_ids}\n"
-                                        f"correct: {session[-1] in predictions}\n"
-                                        f"{'-' * 72}\n"
-                                    )
-                                )
+                            debugger.log(
+                                dataset=dataset,
+                                session_ids=session_ids,
+                                predicted_indexes=predicted_indexes_10,
+                            )
 
                         # calculate hits@10 for long sessions only
                         long_indexes = [
@@ -280,9 +257,6 @@ def train(dataloaders, epochs=10, debug=False):
                 print(
                     f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}, acc@10: {acc_10:.4f}, long acc@10: {long_acc_10:.4f}\n"
                 )
-
-        if debug:
-            debug_f.close()
 
         print_line_separator()
 
