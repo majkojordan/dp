@@ -20,7 +20,8 @@ from config import (
     INPUT_DROPOUT,
 )
 from lib.utils.data import create_data_samples, create_dataloaders
-from lib.session_debugger import SessionDebugger
+from lib.logger.debug import DebugLogger
+from lib.logger.eval import EvalLogger
 from lib.nn import RNN
 from lib.dataset import SequenceDataset
 from lib.session_modifier import SessionModifier
@@ -86,14 +87,14 @@ print_line_separator()
 
 
 # train
-def train(dataloaders, epochs=10, debug=False):
+def train(dataloaders, epochs=10, debug=False, evaluate=False):
     print(f"Training")
 
     for epoch in range(1, epochs + 1):
         print(f"Epoch: {epoch} / {epochs}\n")
 
-        if debug:
-            debugger = SessionDebugger(epoch)
+        debugLogger = DebugLogger(epoch) if debug else None
+        evalLogger = EvalLogger(epoch) if evaluate else None
 
         for phase, dataloader in dataloaders.items():
             print(f"Phase: {phase}")
@@ -139,11 +140,19 @@ def train(dataloaders, epochs=10, debug=False):
                         )
 
                         # show the predictions
-                        if debug:
-                            debugger.log(
+                        if debugLogger:
+                            debugLogger.log(
                                 dataset=dataset,
                                 session_ids=session_ids,
                                 predicted_indexes=predicted_indexes_10,
+                            )
+
+                        # log prediction result
+                        if evalLogger:
+                            evalLogger.log(
+                                session_ids=session_ids,
+                                predicted_indexes=predicted_indexes_10,
+                                labels=labels.tolist(),
                             )
 
                         # calculate hits@10 for long sessions only
@@ -188,7 +197,11 @@ def train(dataloaders, epochs=10, debug=False):
                     f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}, acc@10: {acc_10:.4f}, long acc@10: {long_acc_10:.4f}\n"
                 )
 
+                if evalLogger:
+                    evalLogger.write(phase)
+                    evalLogger.reset()
+
         print_line_separator()
 
 
-train(dataloaders, epochs=EPOCHS, debug=DEBUG)
+train(dataloaders, epochs=EPOCHS, debug=DEBUG, evaluate=EVALUATE_MODEL)

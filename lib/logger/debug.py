@@ -6,7 +6,7 @@ from config import BASE_PATH, DEBUG_FOLDER
 from lib.utils.common import mkdir_p
 
 
-class SessionDebugger:
+class DebugLogger:
     def __init__(self, epoch):
         debug_path = os.path.join(BASE_PATH, DEBUG_FOLDER, f"epoch_{epoch}.txt")
         debug_dir_path = os.path.dirname(debug_path)
@@ -14,9 +14,6 @@ class SessionDebugger:
         self.debug_f = open(debug_path, "w")
 
         atexit.register(self.cleanup)
-
-    def cleanup(self):
-        self.debug_f.close()
 
     def log(self, dataset, session_ids, predicted_indexes):
         for session_id, predictions in zip(session_ids, predicted_indexes):
@@ -35,3 +32,6 @@ class SessionDebugger:
                     f"{'-' * 72}\n"
                 )
             )
+
+    def cleanup(self):
+        self.debug_f.close()
