@@ -11,6 +11,7 @@ from config import (
     DATASET,
     DETECT_PREFERENCE_CHANGE,
     EPOCHS,
+    EVALUATE_MODEL,
     HIDDEN_SIZE,
     EMBEDDING_SIZE,
     LEARNING_RATE,
@@ -42,7 +43,7 @@ train_set, test_set, validation_set = create_data_samples(dataset)
 dataloaders = create_dataloaders(
     dataset=dataset,
     train_set=train_set,
-    test_set=test_set,
+    test_set=test_set if EVALUATE_MODEL else None,
     validation_set=test_set,
     device=device,
 )
