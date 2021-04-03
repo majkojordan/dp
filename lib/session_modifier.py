@@ -53,7 +53,3 @@ class SessionModifier:
             ]
 
         return filtered_session
-
-    def add_long_term_preference(self, session):
-        # TODO
-        return session
