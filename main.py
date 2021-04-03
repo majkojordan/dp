@@ -45,7 +45,7 @@ dataloaders = create_dataloaders(
     dataset=dataset,
     train_set=train_set,
     test_set=test_set if EVALUATE_MODEL else None,
-    validation_set=test_set,
+    validation_set=validation_set,
     device=device,
 )
 
