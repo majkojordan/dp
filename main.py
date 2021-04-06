@@ -44,9 +44,11 @@ train_set, test_set, validation_set = create_data_samples(dataset)
 dataloaders = create_dataloaders(
     dataset=dataset,
     train_set=train_set,
-    test_set=test_set if EVALUATE_MODEL else None,
+    test_set=test_set,
     validation_set=validation_set,
     device=device,
+    modify_train=True,
+    evaluate=EVALUATE_MODEL,
 )
 
 for phase, dataloader in dataloaders.items():

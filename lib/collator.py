@@ -6,19 +6,15 @@ class Collator(object):
     def __init__(
         self,
         device=torch.device("cpu"),
-        use_original_sessions=False,
-        session_modifier=None,
+        modify_sessions=False,
     ):
-        self.use_original_sessions = use_original_sessions
+        self.modify_sessions = modify_sessions
         self.device = device
-        self.session_modifier = session_modifier
 
     def __call__(self, session_data):
         transformed_sessions = []
         for modified_session, original_session, session_id in session_data:
-            session = (
-                original_session if self.use_original_sessions else modified_session
-            )
+            session = modified_session if self.modify_sessions else original_session
 
             input = session[:-1]
 

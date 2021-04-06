@@ -17,10 +17,18 @@ def create_data_samples(dataset):
         generator=torch.Generator().manual_seed(MANUAL_SEED),
     )
 
-    return train_set, validation_set, test_set
+    return train_set, test_set, validation_set
 
 
-def create_dataloaders(dataset, train_set, validation_set, test_set, device):
+def create_dataloaders(
+    dataset,
+    train_set,
+    validation_set,
+    test_set,
+    device=torch.device("cpu"),
+    modify_train=False,
+    evaluate=False,
+):
     # item[2] is item index
     validation_set_preference_change_mask = [
         idx
@@ -36,26 +44,16 @@ def create_dataloaders(dataset, train_set, validation_set, test_set, device):
             train_set,
             batch_size=BATCH_SIZE,
             shuffle=True,
-            collate_fn=Collator(device, False),
+            collate_fn=Collator(device, modify_train),
         ),
         "validation": DataLoader(
             validation_set,
             batch_size=BATCH_SIZE,
-            collate_fn=Collator(device, False),
-        ),
-        "validation_preference_change_original": DataLoader(
-            validation_set_preference_change,
-            batch_size=BATCH_SIZE,
             collate_fn=Collator(device, True),
-        ),
-        "validation_preference_change_modified": DataLoader(
-            validation_set_preference_change,
-            batch_size=BATCH_SIZE,
-            collate_fn=Collator(device, False),
         ),
     }
 
-    if test_set:
+    if evaluate:
         test_set_preference_change_mask = [
             idx
             for idx, item in enumerate(test_set)
@@ -64,20 +62,30 @@ def create_dataloaders(dataset, train_set, validation_set, test_set, device):
         test_set_preference_change = Subset(test_set, test_set_preference_change_mask)
 
         test_dataloaders = {
+            "validation_preference_change_original": DataLoader(
+                validation_set_preference_change,
+                batch_size=BATCH_SIZE,
+                collate_fn=Collator(device, False),
+            ),
+            "validation_preference_change_modified": DataLoader(
+                validation_set_preference_change,
+                batch_size=BATCH_SIZE,
+                collate_fn=Collator(device, True),
+            ),
             "test": DataLoader(
                 test_set,
                 batch_size=BATCH_SIZE,
-                collate_fn=Collator(device, False),
+                collate_fn=Collator(device, True),
             ),
             "test_preference_change_original": DataLoader(
                 test_set_preference_change,
                 batch_size=BATCH_SIZE,
-                collate_fn=Collator(device, True),
+                collate_fn=Collator(device, False),
             ),
             "test_preference_change_modified": DataLoader(
                 test_set_preference_change,
                 batch_size=BATCH_SIZE,
-                collate_fn=Collator(device, False),
+                collate_fn=Collator(device, True),
             ),
         }
 
