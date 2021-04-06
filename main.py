@@ -14,18 +14,20 @@ from config import (
     EVALUATE_MODEL,
     HIDDEN_SIZE,
     EMBEDDING_SIZE,
+    HYBRID_ORIGINAL_MODEL_PATH,
     LEARNING_RATE,
     NUM_LAYERS,
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
+    SAVE_MODEL,
 )
 from lib.utils.data import create_data_samples, create_dataloaders
-from lib.logger.debug import DebugLogger
-from lib.logger.eval import EvalLogger
+from lib.utils.model import load_model
 from lib.nn import RNN
 from lib.dataset import SequenceDataset
 from lib.session_modifier import SessionModifier
 from lib.utils.common import print_line_separator
+from lib.trainer import Trainer
 
 # select device
 device_name = "cuda" if torch.cuda.is_available() else "cpu"
@@ -69,9 +71,13 @@ model = RNN(
     device=device,
     pretrained_embeddings=pretrained_embeddings,
 )
-loss_function = CrossEntropyLoss()
+loss_fn = CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
+# hybrid
+original_model = (
+    load_model(HYBRID_ORIGINAL_MODEL_PATH) if HYBRID_ORIGINAL_MODEL_PATH else None
+)
 
 # calculate baseline
 print_line_separator()
@@ -87,123 +93,17 @@ popular_acc_10 = popular_hits_10 / validation_size * 100
 print(f"Baseline - acc@1: {popular_acc:.4f}, acc@10: {popular_acc_10:.4f}\n")
 print_line_separator()
 
+trainer = Trainer(
+    model=model,
+    optimizer=optimizer,
+    loss_fn=loss_fn,
+    dataloaders=dataloaders,
+    dataset=dataset,
+    device=device,
+    original_model=original_model,
+    debug=DEBUG,
+    evaluate=EVALUATE_MODEL,
+    save=SAVE_MODEL,
+)
 
-# train
-def train(dataloaders, epochs=10, debug=False, evaluate=False):
-    print(f"Training")
-
-    for epoch in range(1, epochs + 1):
-        print(f"Epoch: {epoch} / {epochs}\n")
-
-        debugLogger = DebugLogger(epoch) if debug else None
-        evalLogger = EvalLogger(epoch) if evaluate else None
-
-        for phase, dataloader in dataloaders.items():
-            print(f"Phase: {phase}")
-
-            is_train = phase == "train"
-
-            if is_train:
-                model.train()
-            else:
-                model.eval()
-
-            with torch.set_grad_enabled(is_train):
-                hits = 0
-                hits_10 = 0
-                long_hits_10 = 0
-                long_session_count = 0
-                running_loss = 0
-
-                for inputs, labels, metadata in tqdm(dataloader):
-                    inputs = inputs.to(device, dtype=torch.float)
-                    labels = labels.to(device)
-                    session_ids, lengths = zip(*metadata)
-
-                    optimizer.zero_grad()
-                    model.reset_hidden()
-
-                    y_pred = model(inputs, lengths)
-
-                    loss = loss_function(y_pred, labels)
-
-                    curr_batch_size = inputs.shape[0]
-                    if is_train:
-                        loss.backward()
-                        optimizer.step()
-                    else:
-                        # calculate hits@10 - only for test as it would slow down training
-                        predicted_indexes_10 = torch.topk(y_pred, 10, axis=1).indices
-                        hits_10 += sum(
-                            [
-                                l in predicted_indexes_10[i]
-                                for i, l in enumerate(labels.tolist())
-                            ]
-                        )
-
-                        # show the predictions
-                        if debugLogger:
-                            debugLogger.log(
-                                dataset=dataset,
-                                session_ids=session_ids,
-                                predicted_indexes=predicted_indexes_10,
-                            )
-
-                        # log prediction result
-                        if evalLogger:
-                            evalLogger.log(
-                                session_ids=session_ids,
-                                predicted_indexes=predicted_indexes_10,
-                                labels=labels.tolist(),
-                            )
-
-                        # calculate hits@10 for long sessions only
-                        long_indexes = [
-                            i in dataset.long_session_ids for i in session_ids
-                        ]
-                        long_inputs = inputs[long_indexes]
-                        long_labels = labels[long_indexes]
-                        long_preds = y_pred[long_indexes]
-
-                        predicted_indexes_10 = torch.topk(
-                            long_preds, 10, axis=1
-                        ).indices
-                        long_hits_10 += sum(
-                            [
-                                l in predicted_indexes_10[i]
-                                for i, l in enumerate(long_labels.tolist())
-                            ]
-                        )
-                        long_session_count += long_inputs.shape[0]
-
-                    predicted_indexes = torch.argmax(y_pred, 1)
-                    hits += torch.sum(predicted_indexes == labels).item()
-                    running_loss += loss.item() * curr_batch_size
-
-            phase_size = len(dataloader.dataset)
-            if phase_size == 0:
-                print("No sessions")
-                continue
-            avg_loss = running_loss / phase_size
-            acc = hits / phase_size * 100
-            if is_train:
-                print(f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}\n")
-            else:
-                acc_10 = hits_10 / phase_size * 100
-                long_acc_10 = (
-                    long_hits_10 / long_session_count * 100
-                    if long_session_count > 0
-                    else 999
-                )
-                print(
-                    f"Avg. loss: {avg_loss:.8f}, acc@1: {acc:.4f}, acc@10: {acc_10:.4f}, long acc@10: {long_acc_10:.4f}\n"
-                )
-
-                if evalLogger:
-                    evalLogger.write(phase)
-                    evalLogger.reset()
-
-        print_line_separator()
-
-
-train(dataloaders, epochs=EPOCHS, debug=DEBUG, evaluate=EVALUATE_MODEL)
+trainer.train(EPOCHS)

@@ -139,5 +139,8 @@ debug/
 # evaluation
 evaluation/
 
+# model
+model/
+
 # Finder
 .DS_Store

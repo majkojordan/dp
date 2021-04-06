@@ -47,6 +47,9 @@ class RNN(nn.Module):
         print("Model initialized")
 
     def forward(self, input, lengths):
+        if len(input) == 0:
+            return
+
         output = self.embedding(input.long())
         output = self.dropout(output)
         output = pack_padded_sequence(
