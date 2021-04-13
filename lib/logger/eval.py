@@ -23,7 +23,9 @@ class EvalLogger:
             self.data[session_ids[i]] = is_hit
 
     def write(self, sheet_name):
-        pd.Series(self.data).to_excel(self.writer, sheet_name=sheet_name)
+        pd.Series(self.data).to_excel(
+            self.writer, sheet_name=sheet_name, header=["hit"]
+        )
         self.writer.save()
 
     def reset(self):

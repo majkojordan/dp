@@ -28,7 +28,7 @@ class SessionModifier:
             if similarity < SIMILARITY_THRESHOLD
         ]
         last_subsession = np.split(session, split_indexes)[-1]
-        return last_subsession
+        return last_subsession if len(last_subsession) > 1 else session
 
     def filter_session(self, session):
         if USE_CATEGORY_SIMILARITY:
@@ -52,4 +52,4 @@ class SessionModifier:
                 > SIMILARITY_THRESHOLD
             ]
 
-        return filtered_session
+        return filtered_session if len(filtered_session) > 1 else session
