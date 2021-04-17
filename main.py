@@ -1,5 +1,7 @@
 import os
 import torch
+import random
+import numpy as np
 from torch.nn import CrossEntropyLoss
 from tqdm import tqdm
 
@@ -16,6 +18,7 @@ from config import (
     EMBEDDING_SIZE,
     HYBRID_ORIGINAL_MODEL_PATH,
     LEARNING_RATE,
+    MANUAL_SEED,
     NUM_LAYERS,
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
@@ -28,6 +31,12 @@ from lib.dataset import SequenceDataset
 from lib.session_modifier import SessionModifier
 from lib.utils.common import print_line_separator
 from lib.trainer import Trainer
+
+# manual seed for reproducibility
+if MANUAL_SEED:
+    torch.manual_seed(MANUAL_SEED)
+    random.seed(MANUAL_SEED)
+    np.random.seed(MANUAL_SEED)
 
 # select device
 device_name = "cuda" if torch.cuda.is_available() else "cpu"

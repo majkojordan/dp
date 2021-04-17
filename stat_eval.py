@@ -3,8 +3,8 @@
 import pandas as pd
 from statsmodels.stats.contingency_tables import mcnemar
 
-original_results_path = "evaluation/original/epoch_7.xlsx"
-modified_results_path = "evaluation/modified/epoch_7.xlsx"
+original_results_path = "evaluation/original.xlsx"
+modified_results_path = "evaluation/modified.xlsx"
 sheet_name = "validation"
 
 ALPHA = 0.05
