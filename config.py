@@ -41,3 +41,4 @@ EVAL_FOLDER = os.getenv("EVAL_FOLDER") or "evaluation"
 SAVE_MODEL = load_bool("SAVE_MODEL")
 SAVE_FOLDER = os.getenv("SAVE_FOLDER") or "model"
 HYBRID_ORIGINAL_MODEL_PATH = os.getenv("HYBRID_ORIGINAL_MODEL_PATH")
+MODIFY_TRAIN = load_bool("MODIFY_TRAIN", True)

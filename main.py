@@ -19,6 +19,7 @@ from config import (
     HYBRID_ORIGINAL_MODEL_PATH,
     LEARNING_RATE,
     MANUAL_SEED,
+    MODIFY_TRAIN,
     NUM_LAYERS,
     HIDDEN_DROPOUT,
     INPUT_DROPOUT,
@@ -58,7 +59,7 @@ dataloaders = create_dataloaders(
     test_set=test_set,
     validation_set=validation_set,
     device=device,
-    modify_train=True,
+    modify_train=MODIFY_TRAIN,
     evaluate=EVALUATE_MODEL,
 )
 
