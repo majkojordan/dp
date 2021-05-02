@@ -5,7 +5,7 @@ from statsmodels.stats.contingency_tables import mcnemar
 
 original_results_path = "evaluation/original.xlsx"
 modified_results_path = "evaluation/modified.xlsx"
-sheet_name = "validation"
+sheet_name = "test"
 
 ALPHA = 0.05
 
@@ -21,6 +21,8 @@ results = pd.concat([original_results, modified_results], axis=1)
 results.columns = ["original", "modified"]
 
 cont_table = pd.crosstab(results.original == True, results.modified == True)
+print(cont_table)
+
 result = mcnemar(cont_table, exact=False, correction=False)
 
 h0 = "There is no significant difference in error rate"
