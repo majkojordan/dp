@@ -144,3 +144,6 @@ model/
 
 # Finder
 .DS_Store
+
+# jupyter notebooks
+*.ipynb
