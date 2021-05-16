@@ -22,7 +22,7 @@ Je potrebné mať Python 3 prostredie. Je možné využiť Conda prostredie, nas
 
 ## Konfigurácia
 
-Konfigurácia sa nastavuje pomocou premenných prostredia, odporúčané je využitie `.env` súboru umiestneného v základnom priečinku. V súbore `.env.example` sa nachádza vzorová konfigurácia.
+Konfigurácia sa nastavuje pomocou premenných prostredia, odporúčané je využitie `.env` súboru umiestneného v základnom priečinku. V súbore `env.example` sa nachádza vzorová konfigurácia.
 
 - `DB_CONNECTION_STRING`: (string) connection string na pripojenie k databáze s originálnymi dátami - potrebné len pre predspracovanie. Nepotrebné pri využití `.csv` dát
 - `BASE_PATH`: (string) cesta k základnému priečinku
